@@ -1,0 +1,2240 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_MED",
+      "label": "MyElectricalData v2",
+      "description": "Source PostgreSQL de l'add-on MyElectricalData v2",
+      "type": "datasource",
+      "pluginId": "grafana-postgresql-datasource",
+      "pluginName": "PostgreSQL"
+    }
+  ],
+  "title": "MyElectricalData - Enedis (v2)",
+  "uid": "med-enedis-v2",
+  "tags": [
+    "myelectricaldata"
+  ],
+  "timezone": "Europe/Paris",
+  "editable": true,
+  "schemaVersion": 41,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-1y",
+    "to": "now"
+  },
+  "refresh": "",
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "pdl",
+        "label": "Point de livraison",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_MED}"
+        },
+        "query": "SELECT DISTINCT usage_point_id FROM consumption_data ORDER BY 1",
+        "definition": "SELECT DISTINCT usage_point_id FROM consumption_data ORDER BY 1",
+        "refresh": 1,
+        "hide": 0,
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "type": "textbox",
+        "name": "puissance_kva",
+        "label": "Puissance souscrite (kVA)",
+        "query": "6",
+        "current": {
+          "text": "6",
+          "value": "6"
+        },
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "surface_maison",
+        "label": "Surface (m²)",
+        "query": "120",
+        "current": {
+          "text": "120",
+          "value": "120"
+        },
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "facteur_energie",
+        "label": "Facteur énergie primaire",
+        "query": "2.3",
+        "current": {
+          "text": "2.3",
+          "value": "2.3"
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Conso. HP",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n)\nSELECT SUM(kwh) FILTER (WHERE NOT is_hc) AS \"HP\" FROM x"
+        }
+      ],
+      "description": "Heures pleines Tempo (6h-22h), à partir des demi-heures Enedis.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text"
+              }
+            ]
+          },
+          "unit": "suffix: kWh",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "Conso. HC",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 3
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n)\nSELECT SUM(kwh) FILTER (WHERE is_hc) AS \"HC\" FROM x"
+        }
+      ],
+      "description": "Heures creuses Tempo (22h-6h), à partir des demi-heures Enedis.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text"
+              }
+            ]
+          },
+          "unit": "suffix: kWh",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "Conso. Total",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 6
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT SUM(c.value) / 1000.0 AS \"Total\" FROM consumption_data c\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text"
+              }
+            ]
+          },
+          "unit": "suffix: kWh",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "id": 3
+    },
+    {
+      "type": "piechart",
+      "title": "Répartition HC/HP",
+      "gridPos": {
+        "h": 9,
+        "w": 3,
+        "x": 4,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n)\nSELECT SUM(kwh) FILTER (WHERE NOT is_hc) AS \"HP\", SUM(kwh) FILTER (WHERE is_hc) AS \"HC\" FROM x"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "unit": "suffix: kWh"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "super-light-red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HC"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "light-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Puissance consommée (moyenne horaire) - 7 derniers jours",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 7,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n)\nSELECT date_trunc('hour', ts) AS time,\n  AVG(w) FILTER (WHERE is_hc) AS \"HC\",\n  AVG(w) FILTER (WHERE NOT is_hc) AS \"HP\"\nFROM x GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HC"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "light-blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "super-light-red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "min",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "timeFrom": "7d",
+      "hideTimeOverride": true,
+      "interval": "10m",
+      "id": 5
+    },
+    {
+      "type": "gauge",
+      "title": "Classe Energetique",
+      "gridPos": {
+        "h": 7,
+        "w": 5,
+        "x": 19,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT SUM(c.value) / 1000.0 / $surface_maison * $facteur_energie AS \"kWh/m²/an\" FROM consumption_data c\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND c.date > current_date - 365"
+        }
+      ],
+      "description": "Consommation des 365 derniers jours, en énergie primaire (× facteur d'énergie), rapportée à la surface. Indicatif, ce n'est pas un DPE officiel.",
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [
+            {
+              "options": {
+                "451": {
+                  "text": "G"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "from": -100,
+                "result": {
+                  "text": "BEPOS (RT2020)"
+                },
+                "to": -1
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 0,
+                "result": {
+                  "text": "Maison Passive"
+                },
+                "to": 15
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 16,
+                "result": {
+                  "text": "A (RT2012)"
+                },
+                "to": 50
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 51,
+                "result": {
+                  "text": "B (RT2005)"
+                },
+                "to": 90
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 91,
+                "result": {
+                  "text": "C (RT2000)"
+                },
+                "to": 150
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 151,
+                "result": {
+                  "text": "D (RT1988)"
+                },
+                "to": 230
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 231,
+                "result": {
+                  "text": "E (RT1982)"
+                },
+                "to": 330
+              },
+              "type": "range"
+            },
+            {
+              "options": {
+                "from": 331,
+                "result": {
+                  "text": "F (RT1974)"
+                },
+                "to": 450
+              },
+              "type": "range"
+            }
+          ],
+          "max": 500,
+          "min": -100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#299c46"
+              },
+              {
+                "color": "super-light-purple",
+                "value": -1
+              },
+              {
+                "color": "super-light-blue",
+                "value": 0
+              },
+              {
+                "color": "super-light-green",
+                "value": 15
+              },
+              {
+                "color": "light-green",
+                "value": 50
+              },
+              {
+                "color": "semi-dark-green",
+                "value": 90
+              },
+              {
+                "color": "dark-yellow",
+                "value": 150
+              },
+              {
+                "color": "light-yellow",
+                "value": 230
+              },
+              {
+                "color": "light-orange",
+                "value": 330
+              },
+              {
+                "color": "dark-orange",
+                "value": 450
+              },
+              {
+                "color": "red",
+                "value": 451
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto",
+        "text": {}
+      },
+      "timeFrom": "1y",
+      "hideTimeOverride": true,
+      "id": 6
+    },
+    {
+      "type": "stat",
+      "title": "",
+      "gridPos": {
+        "h": 2,
+        "w": 5,
+        "x": 19,
+        "y": 7
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT SUM(c.value) / 1000.0 / $surface_maison * $facteur_energie AS \"kWh/m²/an\" FROM consumption_data c\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND c.date > current_date - 365"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#299c46"
+              }
+            ]
+          },
+          "unit": "suffix: kWh/m²/an",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "text": {},
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "id": 7
+    },
+    {
+      "type": "text",
+      "title": "Consommation mensuelle année en cours",
+      "gridPos": {
+        "h": 1,
+        "w": 6,
+        "x": 0,
+        "y": 9
+      },
+      "options": {
+        "mode": "markdown",
+        "content": ""
+      },
+      "id": 8
+    },
+    {
+      "type": "text",
+      "title": "Consommation mensuelle année n-1",
+      "gridPos": {
+        "h": 1,
+        "w": 6,
+        "x": 6,
+        "y": 9
+      },
+      "options": {
+        "mode": "markdown",
+        "content": ""
+      },
+      "id": 9
+    },
+    {
+      "type": "text",
+      "title": "Consommation mensuelle année n-2",
+      "gridPos": {
+        "h": 1,
+        "w": 6,
+        "x": 12,
+        "y": 9
+      },
+      "options": {
+        "mode": "markdown",
+        "content": ""
+      },
+      "id": 10
+    },
+    {
+      "type": "text",
+      "title": "Consommation mensuelle année n-3",
+      "gridPos": {
+        "h": 1,
+        "w": 6,
+        "x": 18,
+        "y": 9
+      },
+      "options": {
+        "mode": "markdown",
+        "content": ""
+      },
+      "id": 11
+    },
+    {
+      "type": "stat",
+      "title": "Consommation",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 0,
+        "y": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT SUM(c.value) / 1000.0 AS \"Consommation\" FROM consumption_data c\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 0"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "suffix: kWh",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "text": {},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "id": 12
+    },
+    {
+      "type": "stat",
+      "title": "Coût Tempo (hors abonnement)",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 3,
+        "y": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 0\n), p AS (\n  SELECT x.*, t.color, o.subscription_price AS abo,\n    CASE t.color\n      WHEN 'BLUE'  THEN CASE WHEN x.is_hc THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END\n      WHEN 'WHITE' THEN CASE WHEN x.is_hc THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n      WHEN 'RED'   THEN CASE WHEN x.is_hc THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n    END AS prix\n  FROM x\n  LEFT JOIN tempo_days t ON t.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  LEFT JOIN LATERAL (\n    SELECT eo.* FROM energy_offers eo\n    JOIN energy_providers ep ON ep.id = eo.provider_id\n    WHERE eo.offer_type = 'TEMPO' AND eo.power_kva = $puissance_kva AND ep.name ILIKE '%EDF%'\n    ORDER BY (eo.valid_from <= x.ts) DESC, abs(extract(epoch FROM eo.valid_from - x.ts))\n    LIMIT 1\n  ) o ON true\n)\nSELECT SUM(kwh * prix) AS \"Coût\" FROM p"
+        }
+      ],
+      "description": "Tarif EDF Tempo en vigueur à chaque date, calculé à la demi-heure. Demi-heures disponibles depuis le 17/09/2024 : années antérieures partielles ou vides.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow"
+              }
+            ]
+          },
+          "unit": "currencyEUR",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 1
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "id": 13
+    },
+    {
+      "type": "stat",
+      "title": "Consommation",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 6,
+        "y": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT SUM(c.value) / 1000.0 AS \"Consommation\" FROM consumption_data c\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "suffix: kWh",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "text": {},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "id": 14
+    },
+    {
+      "type": "stat",
+      "title": "Coût Tempo (hors abonnement)",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 9,
+        "y": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 1\n), p AS (\n  SELECT x.*, t.color, o.subscription_price AS abo,\n    CASE t.color\n      WHEN 'BLUE'  THEN CASE WHEN x.is_hc THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END\n      WHEN 'WHITE' THEN CASE WHEN x.is_hc THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n      WHEN 'RED'   THEN CASE WHEN x.is_hc THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n    END AS prix\n  FROM x\n  LEFT JOIN tempo_days t ON t.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  LEFT JOIN LATERAL (\n    SELECT eo.* FROM energy_offers eo\n    JOIN energy_providers ep ON ep.id = eo.provider_id\n    WHERE eo.offer_type = 'TEMPO' AND eo.power_kva = $puissance_kva AND ep.name ILIKE '%EDF%'\n    ORDER BY (eo.valid_from <= x.ts) DESC, abs(extract(epoch FROM eo.valid_from - x.ts))\n    LIMIT 1\n  ) o ON true\n)\nSELECT SUM(kwh * prix) AS \"Coût\" FROM p"
+        }
+      ],
+      "description": "Tarif EDF Tempo en vigueur à chaque date, calculé à la demi-heure. Demi-heures disponibles depuis le 17/09/2024 : années antérieures partielles ou vides.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow"
+              }
+            ]
+          },
+          "unit": "currencyEUR",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 1
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "id": 15
+    },
+    {
+      "type": "stat",
+      "title": "Consommation",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 12,
+        "y": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT SUM(c.value) / 1000.0 AS \"Consommation\" FROM consumption_data c\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 2"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "suffix: kWh",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "text": {},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "id": 16
+    },
+    {
+      "type": "stat",
+      "title": "Coût Tempo (hors abonnement)",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 15,
+        "y": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 2\n), p AS (\n  SELECT x.*, t.color, o.subscription_price AS abo,\n    CASE t.color\n      WHEN 'BLUE'  THEN CASE WHEN x.is_hc THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END\n      WHEN 'WHITE' THEN CASE WHEN x.is_hc THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n      WHEN 'RED'   THEN CASE WHEN x.is_hc THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n    END AS prix\n  FROM x\n  LEFT JOIN tempo_days t ON t.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  LEFT JOIN LATERAL (\n    SELECT eo.* FROM energy_offers eo\n    JOIN energy_providers ep ON ep.id = eo.provider_id\n    WHERE eo.offer_type = 'TEMPO' AND eo.power_kva = $puissance_kva AND ep.name ILIKE '%EDF%'\n    ORDER BY (eo.valid_from <= x.ts) DESC, abs(extract(epoch FROM eo.valid_from - x.ts))\n    LIMIT 1\n  ) o ON true\n)\nSELECT SUM(kwh * prix) AS \"Coût\" FROM p"
+        }
+      ],
+      "description": "Tarif EDF Tempo en vigueur à chaque date, calculé à la demi-heure. Demi-heures disponibles depuis le 17/09/2024 : années antérieures partielles ou vides.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow"
+              }
+            ]
+          },
+          "unit": "currencyEUR",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 1
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "id": 17
+    },
+    {
+      "type": "stat",
+      "title": "Consommation",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 18,
+        "y": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT SUM(c.value) / 1000.0 AS \"Consommation\" FROM consumption_data c\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 3"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "suffix: kWh",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "text": {},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "id": 18
+    },
+    {
+      "type": "stat",
+      "title": "Coût Tempo (hors abonnement)",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 21,
+        "y": 10
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 3\n), p AS (\n  SELECT x.*, t.color, o.subscription_price AS abo,\n    CASE t.color\n      WHEN 'BLUE'  THEN CASE WHEN x.is_hc THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END\n      WHEN 'WHITE' THEN CASE WHEN x.is_hc THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n      WHEN 'RED'   THEN CASE WHEN x.is_hc THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n    END AS prix\n  FROM x\n  LEFT JOIN tempo_days t ON t.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  LEFT JOIN LATERAL (\n    SELECT eo.* FROM energy_offers eo\n    JOIN energy_providers ep ON ep.id = eo.provider_id\n    WHERE eo.offer_type = 'TEMPO' AND eo.power_kva = $puissance_kva AND ep.name ILIKE '%EDF%'\n    ORDER BY (eo.valid_from <= x.ts) DESC, abs(extract(epoch FROM eo.valid_from - x.ts))\n    LIMIT 1\n  ) o ON true\n)\nSELECT SUM(kwh * prix) AS \"Coût\" FROM p"
+        }
+      ],
+      "description": "Tarif EDF Tempo en vigueur à chaque date, calculé à la demi-heure. Demi-heures disponibles depuis le 17/09/2024 : années antérieures partielles ou vides.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow"
+              }
+            ]
+          },
+          "unit": "currencyEUR",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "text": {
+          "titleSize": 1
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "id": 19
+    },
+    {
+      "type": "table",
+      "title": "",
+      "gridPos": {
+        "h": 14,
+        "w": 6,
+        "x": 0,
+        "y": 13
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT lpad(m::text, 2, '0') || ' ' || (ARRAY['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'])[m] AS \"Mois\", SUM(v) / 1000.0 AS \"Consommation\"\nFROM (SELECT extract(month FROM c.date)::int AS m, c.value AS v FROM consumption_data c\n      WHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 0) s\nGROUP BY m ORDER BY m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": false
+          },
+          "decimals": 0,
+          "links": [],
+          "mappings": [],
+          "min": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "super-light-blue"
+              },
+              {
+                "color": "green",
+                "value": 800.0
+              },
+              {
+                "color": "#EAB839",
+                "value": 1200.0
+              },
+              {
+                "color": "red",
+                "value": 2000.0
+              }
+            ]
+          },
+          "unit": "suffix: kWh"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Consommation"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mois"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ],
+          "fields": [
+            "Consommation"
+          ],
+          "countRows": false
+        }
+      },
+      "id": 20
+    },
+    {
+      "type": "table",
+      "title": "",
+      "gridPos": {
+        "h": 14,
+        "w": 6,
+        "x": 6,
+        "y": 13
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT lpad(m::text, 2, '0') || ' ' || (ARRAY['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'])[m] AS \"Mois\", SUM(v) / 1000.0 AS \"Consommation\"\nFROM (SELECT extract(month FROM c.date)::int AS m, c.value AS v FROM consumption_data c\n      WHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 1) s\nGROUP BY m ORDER BY m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": false
+          },
+          "decimals": 0,
+          "links": [],
+          "mappings": [],
+          "min": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "super-light-blue"
+              },
+              {
+                "color": "green",
+                "value": 800.0
+              },
+              {
+                "color": "#EAB839",
+                "value": 1200.0
+              },
+              {
+                "color": "red",
+                "value": 2000.0
+              }
+            ]
+          },
+          "unit": "suffix: kWh"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Consommation"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mois"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ],
+          "fields": [
+            "Consommation"
+          ],
+          "countRows": false
+        }
+      },
+      "id": 21
+    },
+    {
+      "type": "table",
+      "title": "",
+      "gridPos": {
+        "h": 14,
+        "w": 6,
+        "x": 12,
+        "y": 13
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT lpad(m::text, 2, '0') || ' ' || (ARRAY['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'])[m] AS \"Mois\", SUM(v) / 1000.0 AS \"Consommation\"\nFROM (SELECT extract(month FROM c.date)::int AS m, c.value AS v FROM consumption_data c\n      WHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 2) s\nGROUP BY m ORDER BY m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": false
+          },
+          "decimals": 0,
+          "links": [],
+          "mappings": [],
+          "min": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "super-light-blue"
+              },
+              {
+                "color": "green",
+                "value": 800.0
+              },
+              {
+                "color": "#EAB839",
+                "value": 1200.0
+              },
+              {
+                "color": "red",
+                "value": 2000.0
+              }
+            ]
+          },
+          "unit": "suffix: kWh"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Consommation"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mois"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ],
+          "fields": [
+            "Consommation"
+          ],
+          "countRows": false
+        }
+      },
+      "id": 22
+    },
+    {
+      "type": "table",
+      "title": "",
+      "gridPos": {
+        "h": 14,
+        "w": 6,
+        "x": 18,
+        "y": 13
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT lpad(m::text, 2, '0') || ' ' || (ARRAY['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'])[m] AS \"Mois\", SUM(v) / 1000.0 AS \"Consommation\"\nFROM (SELECT extract(month FROM c.date)::int AS m, c.value AS v FROM consumption_data c\n      WHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 3) s\nGROUP BY m ORDER BY m"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": false
+          },
+          "decimals": 0,
+          "links": [],
+          "mappings": [],
+          "min": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "super-light-blue"
+              },
+              {
+                "color": "green",
+                "value": 800.0
+              },
+              {
+                "color": "#EAB839",
+                "value": 1200.0
+              },
+              {
+                "color": "red",
+                "value": 2000.0
+              }
+            ]
+          },
+          "unit": "suffix: kWh"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Consommation"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mois"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ],
+          "fields": [
+            "Consommation"
+          ],
+          "countRows": false
+        }
+      },
+      "id": 23
+    },
+    {
+      "type": "stat",
+      "title": "",
+      "gridPos": {
+        "h": 2,
+        "w": 6,
+        "x": 0,
+        "y": 27
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT (SUM(c.value) - SUM(b.value))::float / NULLIF(SUM(b.value), 0) AS \"Évolution\"\nFROM consumption_data c\nJOIN consumption_data b\n  ON b.usage_point_id = c.usage_point_id AND b.granularity = 'daily'\n AND b.date = (c.date - interval '1 year')::date\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 0"
+        }
+      ],
+      "description": "Évolution par rapport à l'année précédente, calculée uniquement sur les jours présents dans les deux années (comparaison à période égale).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "id": 24
+    },
+    {
+      "type": "stat",
+      "title": "",
+      "gridPos": {
+        "h": 2,
+        "w": 6,
+        "x": 6,
+        "y": 27
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT (SUM(c.value) - SUM(b.value))::float / NULLIF(SUM(b.value), 0) AS \"Évolution\"\nFROM consumption_data c\nJOIN consumption_data b\n  ON b.usage_point_id = c.usage_point_id AND b.granularity = 'daily'\n AND b.date = (c.date - interval '1 year')::date\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 1"
+        }
+      ],
+      "description": "Évolution par rapport à l'année précédente, calculée uniquement sur les jours présents dans les deux années (comparaison à période égale).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "id": 25
+    },
+    {
+      "type": "stat",
+      "title": "",
+      "gridPos": {
+        "h": 2,
+        "w": 6,
+        "x": 12,
+        "y": 27
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT (SUM(c.value) - SUM(b.value))::float / NULLIF(SUM(b.value), 0) AS \"Évolution\"\nFROM consumption_data c\nJOIN consumption_data b\n  ON b.usage_point_id = c.usage_point_id AND b.granularity = 'daily'\n AND b.date = (c.date - interval '1 year')::date\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 2"
+        }
+      ],
+      "description": "Évolution par rapport à l'année précédente, calculée uniquement sur les jours présents dans les deux années (comparaison à période égale).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "id": 26
+    },
+    {
+      "type": "stat",
+      "title": "",
+      "gridPos": {
+        "h": 2,
+        "w": 6,
+        "x": 18,
+        "y": 27
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT (SUM(c.value) - SUM(b.value))::float / NULLIF(SUM(b.value), 0) AS \"Évolution\"\nFROM consumption_data c\nJOIN consumption_data b\n  ON b.usage_point_id = c.usage_point_id AND b.granularity = 'daily'\n AND b.date = (c.date - interval '1 year')::date\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND extract(year FROM c.date) = extract(year FROM current_date) - 3"
+        }
+      ],
+      "description": "Évolution par rapport à l'année précédente, calculée uniquement sur les jours présents dans les deux années (comparaison à période égale).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "id": 27
+    },
+    {
+      "type": "timeseries",
+      "title": "Puissance consommée (moyenne 30 min) - 12 derniers mois",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n)\nSELECT ts AS time, w AS \"Puissance moyenne\" FROM x ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd",
+            "seriesBy": "max"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 100,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 6000
+              }
+            ]
+          },
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "timeFrom": "1y",
+      "hideTimeOverride": true,
+      "interval": "10m",
+      "id": 28
+    },
+    {
+      "type": "timeseries",
+      "title": "Energie consommée par jour - en kWh - 12 derniers mois",
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value AS w,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.usage_point_id = '$pdl' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n)\nSELECT ((ts AT TIME ZONE 'Europe/Paris')::date)::timestamp AT TIME ZONE 'Europe/Paris' AS time,\n  SUM(kwh) FILTER (WHERE is_hc) AS \"HC\",\n  SUM(kwh) FILTER (WHERE NOT is_hc) AS \"HP\"\nFROM x GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 50,
+            "gradientMode": "scheme",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 2,
+            "pointSize": 8,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "area"
+            }
+          },
+          "links": [],
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent"
+              }
+            ]
+          },
+          "unit": "suffix: kWh",
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HC"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "group": "A",
+                  "mode": "normal"
+                }
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 60
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "HP"
+            },
+            "properties": [
+              {
+                "id": "custom.stacking",
+                "value": {
+                  "group": "A",
+                  "mode": "normal"
+                }
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-orange",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 60
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "min",
+            "max",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "maxHeight": 600,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "timeFrom": "1y",
+      "hideTimeOverride": true,
+      "id": 29
+    }
+  ]
+}

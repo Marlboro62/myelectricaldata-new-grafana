@@ -1,0 +1,945 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_MED",
+      "label": "MyElectricalData v2",
+      "description": "Source PostgreSQL de l'add-on MyElectricalData v2",
+      "type": "datasource",
+      "pluginId": "grafana-postgresql-datasource",
+      "pluginName": "PostgreSQL"
+    }
+  ],
+  "title": "Linky / Tempo",
+  "uid": "med-linky-tempo",
+  "tags": [
+    "myelectricaldata",
+    "linky",
+    "tempo"
+  ],
+  "timezone": "Europe/Paris",
+  "editable": true,
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-1y",
+    "to": "now"
+  },
+  "refresh": "",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Tempo aujourd'hui",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT color FROM tempo_days WHERE id = to_char((now() AT TIME ZONE 'Europe/Paris') - interval '6 hours', 'YYYY-MM-DD')"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^color$/"
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Inconnu",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "BLUE": {
+                  "text": "Bleu",
+                  "color": "blue",
+                  "index": 0
+                },
+                "WHITE": {
+                  "text": "Blanc",
+                  "color": "#d8d9da",
+                  "index": 1
+                },
+                "RED": {
+                  "text": "Rouge",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tempo demain",
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT color FROM tempo_days WHERE id = to_char((now() AT TIME ZONE 'Europe/Paris') - interval '6 hours' + interval '1 day', 'YYYY-MM-DD')"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^color$/"
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Pas encore publié",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "BLUE": {
+                  "text": "Bleu",
+                  "color": "blue",
+                  "index": 0
+                },
+                "WHITE": {
+                  "text": "Blanc",
+                  "color": "#d8d9da",
+                  "index": 1
+                },
+                "RED": {
+                  "text": "Rouge",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Consommation (période affichée)",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT SUM(value) / 1000.0 AS \"Consommation\" FROM consumption_data WHERE granularity = 'daily' AND date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: kWh",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Jours rouges restants",
+      "description": "Saison Tempo du 1er septembre au 31 août, 22 jours rouges au total. Inclut le jour de demain s'il est déjà publié.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT 22 - count(*) FILTER (WHERE color = 'RED') AS \"Rouges restants\" FROM tempo_days WHERE id >= to_char(make_date(extract(year FROM now() - interval '8 months')::int, 9, 1), 'YYYY-MM-DD')"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "red"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Jours blancs restants",
+      "description": "Saison Tempo du 1er septembre au 31 août, 43 jours blancs au total. Inclut le jour de demain s'il est déjà publié.",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT 43 - count(*) FILTER (WHERE color = 'WHITE') AS \"Blancs restants\" FROM tempo_days WHERE id >= to_char(make_date(extract(year FROM now() - interval '8 months')::int, 9, 1), 'YYYY-MM-DD')"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#d8d9da"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Puissance max (période affichée)",
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT MAX(value) AS \"Puissance max\" FROM max_power_data WHERE date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: VA",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 4500
+              },
+              {
+                "color": "red",
+                "value": 5700
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Consommation journalière par couleur Tempo",
+      "description": "Valeur journalière Enedis (0h-24h) colorée selon le jour Tempo de la même date.",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 16,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT\n  c.date::timestamp AT TIME ZONE 'Europe/Paris' AS time,\n  SUM(c.value) FILTER (WHERE t.color = 'BLUE') / 1000.0 AS \"Bleu\",\n  SUM(c.value) FILTER (WHERE t.color = 'WHITE') / 1000.0 AS \"Blanc\",\n  SUM(c.value) FILTER (WHERE t.color = 'RED') / 1000.0 AS \"Rouge\",\n  SUM(c.value) FILTER (WHERE t.color IS NULL) / 1000.0 AS \"Inconnu\"\nFROM consumption_data c\nLEFT JOIN tempo_days t ON t.id = c.date::text\nWHERE c.granularity = 'daily' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: kWh",
+          "decimals": 1,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 90,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bleu"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Blanc"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d8d9da"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rouge"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Inconnu"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "gray"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "piechart",
+      "title": "Répartition par couleur (période affichée)",
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT\n  SUM(c.value) FILTER (WHERE t.color = 'BLUE') / 1000.0 AS \"Bleu\",\n  SUM(c.value) FILTER (WHERE t.color = 'WHITE') / 1000.0 AS \"Blanc\",\n  SUM(c.value) FILTER (WHERE t.color = 'RED') / 1000.0 AS \"Rouge\"\nFROM consumption_data c\nLEFT JOIN tempo_days t ON t.id = c.date::text\nWHERE c.granularity = 'daily' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "displayLabels": [
+          "percent"
+        ],
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: kWh",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bleu"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Blanc"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d8d9da"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rouge"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Courbe de charge (puissance moyenne par demi-heure)",
+      "description": "Données Enedis au pas de 30 minutes, en W moyens. Astuce : réduis la période affichée (7 ou 30 jours) pour plus de lisibilité.",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT\n  (date + interval_start::time) AT TIME ZONE 'Europe/Paris' AS time,\n  value AS \"Puissance moyenne\"\nFROM consumption_data\nWHERE granularity = 'detailed' AND date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: W",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 1,
+            "fillOpacity": 20,
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Puissance max journalière",
+      "description": "Puissance apparente maximale atteinte chaque jour. Ligne rouge : 6 kVA (à ajuster dans les seuils du panneau selon ton abonnement).",
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 16,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT\n  date::timestamp AT TIME ZONE 'Europe/Paris' AS time,\n  value AS \"Puissance max\"\nFROM max_power_data\nWHERE date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: VA",
+          "decimals": 0,
+          "min": 0,
+          "max": 6500,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 6000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "text",
+      "title": "Infos",
+      "gridPos": {
+        "x": 16,
+        "y": 22,
+        "w": 8,
+        "h": 8
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Tempo\n\n- Saison du 1er septembre au 31 août : **22 jours rouges**, **43 jours blancs**, le reste en bleu.\n- Un jour Tempo va de **6h à 6h** le lendemain.\n- Heures creuses : **22h à 6h**.\n\n### Calculs\n\n- Prix : grille **EDF Tempo** de la puissance choisie en haut, en vigueur à chaque date (table `energy_offers`).\n- Courbe de charge Enedis en **W moyens par demi-heure** (÷ 2 pour des Wh).\n\n### Source\n\nDonnées Enedis via l'add-on **MyElectricalData v2** (PostgreSQL, accès en lecture seule)."
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Coût année de facturation",
+      "description": "Énergie au tarif Tempo en vigueur à chaque date + abonnement au prorata, depuis la date de début de facturation (variable en haut, format MM-JJ). Indépendant de la période affichée.",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.date >= (SELECT CASE WHEN s.d > current_date THEN (s.d - interval '1 year')::date ELSE s.d END FROM (SELECT to_date(extract(year FROM current_date)::int || '-$debut_facturation', 'YYYY-MM-DD') AS d) s)\n), p AS (\n  SELECT x.tempo_date, x.kwh, t.color, o.subscription_price AS abo,\n    CASE t.color\n      WHEN 'BLUE'  THEN CASE WHEN x.is_hc THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END\n      WHEN 'WHITE' THEN CASE WHEN x.is_hc THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n      WHEN 'RED'   THEN CASE WHEN x.is_hc THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n    END AS prix\n  FROM x\n  LEFT JOIN tempo_days t ON t.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  LEFT JOIN LATERAL (\n    SELECT eo.* FROM energy_offers eo\n    JOIN energy_providers ep ON ep.id = eo.provider_id\n    WHERE eo.offer_type = 'TEMPO' AND eo.power_kva = $puissance_kva AND ep.name ILIKE '%EDF%'\n    ORDER BY (eo.valid_from <= x.ts) DESC, abs(extract(epoch FROM eo.valid_from - x.ts))\n    LIMIT 1\n  ) o ON true\n)\nSELECT\n  SUM(kwh * prix) + count(*) / 48.0 * MAX(abo) * 12 / 365 AS \"Coût\"\nFROM p"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Coût (période affichée)",
+      "description": "Énergie au tarif Tempo en vigueur à chaque date + abonnement au prorata, sur la période sélectionnée en haut à droite.",
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), p AS (\n  SELECT x.tempo_date, x.kwh, t.color, o.subscription_price AS abo,\n    CASE t.color\n      WHEN 'BLUE'  THEN CASE WHEN x.is_hc THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END\n      WHEN 'WHITE' THEN CASE WHEN x.is_hc THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n      WHEN 'RED'   THEN CASE WHEN x.is_hc THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n    END AS prix\n  FROM x\n  LEFT JOIN tempo_days t ON t.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  LEFT JOIN LATERAL (\n    SELECT eo.* FROM energy_offers eo\n    JOIN energy_providers ep ON ep.id = eo.provider_id\n    WHERE eo.offer_type = 'TEMPO' AND eo.power_kva = $puissance_kva AND ep.name ILIKE '%EDF%'\n    ORDER BY (eo.valid_from <= x.ts) DESC, abs(extract(epoch FROM eo.valid_from - x.ts))\n    LIMIT 1\n  ) o ON true\n)\nSELECT\n  SUM(kwh * prix) + count(*) / 48.0 * MAX(abo) * 12 / 365 AS \"Coût\"\nFROM p"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Coût énergie journalier (jour Tempo 6h-6h)",
+      "description": "Coût de l'énergie seule (hors abonnement), calculé à la demi-heure : heures creuses 22h-6h, couleur du jour Tempo de 6h à 6h.",
+      "gridPos": {
+        "x": 6,
+        "y": 30,
+        "w": 18,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH x AS (\n  SELECT\n    (c.date + c.interval_start::time) AT TIME ZONE 'Europe/Paris' AS ts,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    (c.interval_start::time >= '22:00' OR c.interval_start::time < '06:00') AS is_hc,\n    c.value / 2000.0 AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed' AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), p AS (\n  SELECT x.tempo_date, x.kwh, t.color, o.subscription_price AS abo,\n    CASE t.color\n      WHEN 'BLUE'  THEN CASE WHEN x.is_hc THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END\n      WHEN 'WHITE' THEN CASE WHEN x.is_hc THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n      WHEN 'RED'   THEN CASE WHEN x.is_hc THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n    END AS prix\n  FROM x\n  LEFT JOIN tempo_days t ON t.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  LEFT JOIN LATERAL (\n    SELECT eo.* FROM energy_offers eo\n    JOIN energy_providers ep ON ep.id = eo.provider_id\n    WHERE eo.offer_type = 'TEMPO' AND eo.power_kva = $puissance_kva AND ep.name ILIKE '%EDF%'\n    ORDER BY (eo.valid_from <= x.ts) DESC, abs(extract(epoch FROM eo.valid_from - x.ts))\n    LIMIT 1\n  ) o ON true\n)\nSELECT\n  tempo_date::timestamp AT TIME ZONE 'Europe/Paris' AS time,\n  SUM(kwh * prix) FILTER (WHERE color = 'BLUE')  AS \"Bleu\",\n  SUM(kwh * prix) FILTER (WHERE color = 'WHITE') AS \"Blanc\",\n  SUM(kwh * prix) FILTER (WHERE color = 'RED')   AS \"Rouge\"\nFROM p\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR",
+          "decimals": 2,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 90,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "showPoints": "never",
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bleu"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Blanc"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#d8d9da"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rouge"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "puissance_kva",
+        "label": "Puissance souscrite (kVA)",
+        "query": "6",
+        "current": {
+          "text": "6",
+          "value": "6"
+        },
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "debut_facturation",
+        "label": "Début année de facturation (MM-JJ)",
+        "query": "10-13",
+        "current": {
+          "text": "10-13",
+          "value": "10-13"
+        },
+        "hide": 0
+      }
+    ]
+  }
+}
