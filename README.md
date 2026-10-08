@@ -2,9 +2,19 @@
 
 [![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-d32f2f?logo=buymeacoffee&logoColor=white&style=flat)](https://buymeacoffee.com/marlboro62) [![Ko-fi](https://img.shields.io/badge/Ko--fi-ff5e5b?logo=kofi&logoColor=white&style=flat)](https://ko-fi.com/nothing_one)
 
-Trois tableaux de bord Grafana qui lisent directement la base **PostgreSQL** de l'add-on Home Assistant
-[MyElectricalData v2](https://github.com/Marlboro62/hassio-addons/tree/master/myelectricaldata_v2)
-(consommation Linky journalière et à la demi-heure, couleurs Tempo, puissance max, grilles tarifaires).
+Trois tableaux de bord Grafana qui lisent directement la base **PostgreSQL** de l'add-on Home Assistant [MyElectricalData v2](https://github.com/Marlboro62/hassio-addons/tree/master/myelectricaldata_v2) (consommation Linky journalière et à la demi-heure, couleurs Tempo, puissance max, grilles tarifaires).
+
+## 🧩 Fait partie de l'écosystème MyElectricalData v2
+
+Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'équipe MyElectricalData. Ils s'appuient sur le [mode client de MyElectricalData v2](https://github.com/MyElectricalData/myelectricaldata_new).
+
+| Projet | Rôle |
+| --- | --- |
+| [Add-on Home Assistant](https://github.com/Marlboro62/hassio-addons) | Installe le mode client v2 dans Home Assistant (interface web, synchro Linky/Tempo, PostgreSQL intégré) |
+| [Script Proxmox (LXC)](https://github.com/Marlboro62/myelectricaldata-proxmox) | Déploie le mode client v2 dans un conteneur LXC Proxmox, sans Docker |
+| [Carte Lovelace](https://github.com/Marlboro62/content-card-linky-v2) | Affiche conso, Tempo, coût et puissance max dans un tableau de bord Home Assistant |
+| **Dashboards Grafana (ce dépôt)** | Analyse la base PostgreSQL de l'add-on (Linky, Tempo, coûts) |
+
 
 | Fichier | Contenu | Origine |
 |---|---|---|
