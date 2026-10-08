@@ -15,9 +15,10 @@ Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'�
 | [Carte Lovelace](https://github.com/Marlboro62/content-card-linky-v2) | Affiche conso, Tempo, coût et puissance max dans un tableau de bord Home Assistant |
 | **Dashboards Grafana (ce dépôt)** | Analyse la base PostgreSQL de l'add-on (Linky, Tempo, coûts) |
 
+## Contenu du dépôt
 
 | Fichier | Contenu | Origine |
-|---|---|---|
+| --- | --- | --- |
 | `dashboards/linky-tempo.json` | Tempo du jour et du lendemain, jours rouges/blancs restants, consommation par couleur, courbe de charge, puissance max, coût réel Tempo (année de facturation et période) | Création originale |
 | `dashboards/my-electrical-data-v2.json` | Consommation et coût HC/HP, classe énergétique, comparaison Tempo / offre Base, bilans annuels et mensuels | Adapté du dashboard de **geobar78** |
 | `dashboards/myelectricaldata-enedis-v2.json` | Consommation HC/HP, classe énergétique en énergie primaire, bilans sur 4 années, évolution à période égale | Adapté du dashboard de **HermesHonshappo** |
@@ -51,6 +52,10 @@ MyElectricalData v1 avec InfluxDB, utilisez directement leurs dépôts.
    configuration de l'add-on, puis renseigner le port `5432` dans l'onglet **Réseau**.
 2. Grafana 11 ou plus récent.
 
+Testé avec l'add-on MyElectricalData v2 en version 2.4.1.
+
+> ⚠️ **Sécurité** : l'accès PostgreSQL est en lecture seule (utilisateur `grafana_ro`), mais la connexion n'est pas chiffrée (TLS désactivé). Gardez le port `5432` sur votre réseau local et ne le redirigez jamais depuis Internet.
+
 ## Installation
 
 1. Dans Grafana : **Connections → Data sources → Add → PostgreSQL**
@@ -67,3 +72,11 @@ MyElectricalData v1 avec InfluxDB, utilisez directement leurs dépôts.
 - Les coûts sont calculés à la demi-heure : ils ne sont disponibles que sur la période couverte par la courbe de charge Enedis.
 - Les coûts sont des estimations TTC à partir des grilles présentes dans MyElectricalData : si une ancienne grille manque,
   la plus proche est appliquée.
+
+## Dépannage
+
+| Problème | Piste |
+| --- | --- |
+| Grafana n'arrive pas à se connecter à la base | Vérifiez que le port `5432` est renseigné dans l'onglet **Réseau** de l'add-on, puis que l'IP de Home Assistant est correcte |
+| Échec d'authentification | Le mot de passe de l'utilisateur `grafana_ro` est celui de `grafana_password` dans la configuration de l'add-on |
+| Panneaux vides ou coûts absents | Vérifiez que la synchronisation de l'add-on est terminée : les coûts n'existent que sur la période couverte par la courbe de charge |
