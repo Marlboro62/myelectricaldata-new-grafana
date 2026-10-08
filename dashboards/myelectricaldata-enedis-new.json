@@ -2,14 +2,14 @@
   "__inputs": [
     {
       "name": "DS_MED",
-      "label": "MyElectricalData v2",
-      "description": "Source PostgreSQL de l'add-on MyElectricalData v2",
+      "label": "MyElectricalData new",
+      "description": "Source PostgreSQL de l'add-on MyElectricalData new",
       "type": "datasource",
       "pluginId": "grafana-postgresql-datasource",
       "pluginName": "PostgreSQL"
     }
   ],
-  "title": "MyElectricalData - Enedis (v2)",
+  "title": "MyElectricalData - Enedis (new)",
   "uid": "med-enedis-v2",
   "tags": [
     "myelectricaldata"

@@ -20,8 +20,8 @@ Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'�
 | Fichier | Contenu | Origine |
 | --- | --- | --- |
 | `dashboards/linky-tempo.json` | Tempo du jour et du lendemain, jours rouges/blancs restants, consommation par couleur, courbe de charge, puissance max, coût réel Tempo (année de facturation et période) | Création originale |
-| `dashboards/my-electrical-data-v2.json` | Consommation et coût HC/HP, classe énergétique, comparaison Tempo / offre Base, bilans annuels et mensuels | Adapté du dashboard de **geobar78** |
-| `dashboards/myelectricaldata-enedis-v2.json` | Consommation HC/HP, classe énergétique en énergie primaire, bilans sur 4 années, évolution à période égale | Adapté du dashboard de **HermesHonshappo** |
+| `dashboards/my-electrical-data-new.json` | Consommation et coût HC/HP, classe énergétique, comparaison Tempo / offre Base, bilans annuels et mensuels | Adapté du dashboard de **geobar78** |
+| `dashboards/myelectricaldata-enedis-new.json` | Consommation HC/HP, classe énergétique en énergie primaire, bilans sur 4 années, évolution à période égale | Adapté du dashboard de **HermesHonshappo** |
 
 ## Remerciements
 

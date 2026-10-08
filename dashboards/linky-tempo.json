@@ -2,8 +2,8 @@
   "__inputs": [
     {
       "name": "DS_MED",
-      "label": "MyElectricalData v2",
-      "description": "Source PostgreSQL de l'add-on MyElectricalData v2",
+      "label": "MyElectricalData new",
+      "description": "Source PostgreSQL de l'add-on MyElectricalData new",
       "type": "datasource",
       "pluginId": "grafana-postgresql-datasource",
       "pluginName": "PostgreSQL"
@@ -717,7 +717,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### Tempo\n\n- Saison du 1er septembre au 31 août : **22 jours rouges**, **43 jours blancs**, le reste en bleu.\n- Un jour Tempo va de **6h à 6h** le lendemain.\n- Heures creuses : **22h à 6h**.\n\n### Calculs\n\n- Prix : grille **EDF Tempo** de la puissance choisie en haut, en vigueur à chaque date (table `energy_offers`).\n- Courbe de charge Enedis en **W moyens par demi-heure** (÷ 2 pour des Wh).\n\n### Source\n\nDonnées Enedis via l'add-on **MyElectricalData v2** (PostgreSQL, accès en lecture seule)."
+        "content": "### Tempo\n\n- Saison du 1er septembre au 31 août : **22 jours rouges**, **43 jours blancs**, le reste en bleu.\n- Un jour Tempo va de **6h à 6h** le lendemain.\n- Heures creuses : **22h à 6h**.\n\n### Calculs\n\n- Prix : grille **EDF Tempo** de la puissance choisie en haut, en vigueur à chaque date (table `energy_offers`).\n- Courbe de charge Enedis en **W moyens par demi-heure** (÷ 2 pour des Wh).\n\n### Source\n\nDonnées Enedis via l'add-on **MyElectricalData new** (PostgreSQL, accès en lecture seule)."
       }
     },
     {
