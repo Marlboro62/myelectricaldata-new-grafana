@@ -2,17 +2,17 @@
 
 [![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-d32f2f?logo=buymeacoffee&logoColor=white&style=flat)](https://buymeacoffee.com/marlboro62) [![Ko-fi](https://img.shields.io/badge/Ko--fi-ff5e5b?logo=kofi&logoColor=white&style=flat)](https://ko-fi.com/nothing_one)
 
-Trois tableaux de bord Grafana qui lisent directement la base **PostgreSQL** de l'add-on Home Assistant [MyElectricalData v2](https://github.com/Marlboro62/hassio-addons/tree/master/myelectricaldata_v2) (consommation Linky journalière et à la demi-heure, couleurs Tempo, puissance max, grilles tarifaires).
+Trois tableaux de bord Grafana qui lisent directement la base **PostgreSQL** de l'add-on Home Assistant [MyElectricalData new](https://github.com/Marlboro62/hassio-addons/tree/master/myelectricaldata_new) (consommation Linky journalière et à la demi-heure, couleurs Tempo, puissance max, grilles tarifaires).
 
-## 🧩 Fait partie de l'écosystème MyElectricalData v2
+## 🧩 Fait partie de l'écosystème MyElectricalData new
 
-Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'équipe MyElectricalData. Ils s'appuient sur le [mode client de MyElectricalData v2](https://github.com/MyElectricalData/myelectricaldata_new).
+Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'équipe MyElectricalData. Ils s'appuient sur le [mode client de MyElectricalData new](https://github.com/MyElectricalData/myelectricaldata_new), relié à la passerelle [www.v2.myelectricaldata.fr](https://www.v2.myelectricaldata.fr).
 
 | Projet | Rôle |
 | --- | --- |
-| [Add-on Home Assistant](https://github.com/Marlboro62/hassio-addons) | Installe le mode client v2 dans Home Assistant (interface web, synchro Linky/Tempo, PostgreSQL intégré) |
-| [Script Proxmox (LXC)](https://github.com/Marlboro62/myelectricaldata-proxmox) | Déploie le mode client v2 dans un conteneur LXC Proxmox, sans Docker |
-| [Carte Lovelace](https://github.com/Marlboro62/content-card-linky-v2) | Affiche conso, Tempo, coût et puissance max dans un tableau de bord Home Assistant |
+| [Add-on Home Assistant](https://github.com/Marlboro62/hassio-addons) | Installe le mode client dans Home Assistant (interface web, synchro Linky/Tempo, PostgreSQL intégré) |
+| [Script Proxmox (LXC)](https://github.com/Marlboro62/myelectricaldata-proxmox) | Déploie le mode client dans un conteneur LXC Proxmox, sans Docker |
+| [Carte Lovelace](https://github.com/Marlboro62/content-card-linky-new) | Affiche conso, Tempo, coût et puissance max dans un tableau de bord Home Assistant |
 | **Dashboards Grafana (ce dépôt)** | Analyse la base PostgreSQL de l'add-on (Linky, Tempo, coûts) |
 
 ## Contenu du dépôt
@@ -38,21 +38,21 @@ MyElectricalData v1 avec InfluxDB, utilisez directement leurs dépôts.
 
 ### Ce qui a été modifié dans les adaptations
 
-- Source de données : InfluxDB remplacé par le PostgreSQL de MyElectricalData v2 (requêtes SQL).
+- Source de données : InfluxDB remplacé par le PostgreSQL de MyElectricalData new (requêtes SQL).
 - Prix : les tarifs saisis à la main sont remplacés par la table `energy_offers` de MyElectricalData,
   avec le tarif en vigueur à chaque date et la couleur Tempo de chaque jour.
 - Plugins Angular retirés (`farski-blendstat-panel`, `blackmirror1-singlestat-math-panel`), incompatibles
   avec Grafana 11 et suivants : remplacés par des panneaux `stat` natifs.
 - Années calculées automatiquement, évolutions comparées à période égale.
-- Températures Home Assistant retirées (elles venaient d'un bucket InfluxDB que MyElectricalData v2 ne fournit pas).
+- Températures Home Assistant retirées (elles venaient d'un bucket InfluxDB que MyElectricalData new ne fournit pas).
 
 ## Prérequis
 
-1. L'add-on **MyElectricalData v2** avec l'accès Grafana activé : définir `grafana_password` dans la
+1. L'add-on **MyElectricalData new** avec l'accès Grafana activé : définir `grafana_password` dans la
    configuration de l'add-on, puis renseigner le port `5432` dans l'onglet **Réseau**.
 2. Grafana 11 ou plus récent.
 
-Testé avec l'add-on MyElectricalData v2 en version 2.4.1.
+Testé avec l'add-on MyElectricalData new en version 2.4.4.2.
 
 > ⚠️ **Sécurité** : l'accès PostgreSQL est en lecture seule (utilisateur `grafana_ro`), mais la connexion n'est pas chiffrée (TLS désactivé). Gardez le port `5432` sur votre réseau local et ne le redirigez jamais depuis Internet.
 
@@ -72,6 +72,8 @@ Testé avec l'add-on MyElectricalData v2 en version 2.4.1.
 - Les coûts sont calculés à la demi-heure : ils ne sont disponibles que sur la période couverte par la courbe de charge Enedis.
 - Les coûts sont des estimations TTC à partir des grilles présentes dans MyElectricalData : si une ancienne grille manque,
   la plus proche est appliquée.
+- Vous passez de l'ancien add-on « MyElectricalData v2 » à « MyElectricalData new » ? Il suffit de modifier la source
+  PostgreSQL de Grafana si le port ou l'adresse a changé : le nom de la base, l'utilisateur et les dashboards restent les mêmes.
 
 ## Dépannage
 
