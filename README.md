@@ -6,6 +6,8 @@ Trois tableaux de bord Grafana qui lisent directement la base **PostgreSQL** de 
 
 Un quatrième dashboard lit les données envoyées à **VictoriaMetrics** par l'export de l'interface MyElectricalData, sans ouvrir le port de la base (voir [Dashboard VictoriaMetrics](#dashboard-victoriametrics-sans-postgresql)).
 
+En bonus, un dashboard **ZLinky (LiXee)** affiche votre compteur Linky en temps réel, indépendamment de MyElectricalData (voir [Bonus : ZLinky en temps réel](#bonus--zlinky-lixee-en-temps-réel)).
+
 ## 🧩 Fait partie de l'écosystème MyElectricalData new
 
 Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'équipe MyElectricalData. Ils s'appuient sur le [mode client de MyElectricalData new](https://github.com/MyElectricalData/myelectricaldata_new), relié à la passerelle [www.v2.myelectricaldata.fr](https://www.v2.myelectricaldata.fr).
@@ -25,6 +27,7 @@ Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'�
 | `dashboards/my-electrical-data-new.json` | Consommation et coût HC/HP, classe énergétique, comparaison Tempo / offre Base, bilans annuels et mensuels | Adapté du dashboard de **geobar78** |
 | `dashboards/myelectricaldata-enedis-new.json` | Consommation HC/HP, classe énergétique en énergie primaire, bilans sur 4 années, évolution à période égale | Adapté du dashboard de **HermesHonshappo** |
 | `dashboards/myelectricaldata-victoriametrics.json` | Tempo du jour et du lendemain, jours restants, consommation du mois et de l'année, consommation journalière, courbe de charge, consommation glissante sur 30 jours, répartition par couleur Tempo (source VictoriaMetrics) | Création originale |
+| `dashboards/zlinky-linky-temps-reel.json` | Bonus ZLinky (LiXee) : période tarifaire en cours, puissance apparente et charge par rapport à la puissance souscrite, puissance max du jour, consommation du jour et par heure pour chacun des 6 index Tempo, tension et courant (source VictoriaMetrics) | Création originale |
 
 ## Remerciements
 
@@ -79,6 +82,33 @@ Une alternative aux dashboards PostgreSQL : MyElectricalData pousse ses données
 4. **Dashboards → New → Import**, choisissez `dashboards/myelectricaldata-victoriametrics.json`, puis la source VictoriaMetrics.
 
 > ⚠️ **Sécurité** : gardez l'authentification de VictoriaMetrics activée et n'exposez jamais le port `8428` sur Internet.
+
+## Bonus : ZLinky (LiXee) en temps réel
+
+Ce dashboard ne dépend pas de MyElectricalData : il lit directement le compteur Linky grâce à un module [ZLinky de LiXee](https://lixee.fr/) (Zigbee). Là où Enedis publie les données avec un jour de retard, le ZLinky donne la puissance et les index à la minute.
+
+Chemin des données : ZLinky → Zigbee2MQTT (ou ZHA) → Home Assistant → intégration Prometheus → VictoriaMetrics → Grafana.
+
+Prérequis :
+
+- Linky en **mode TIC standard** avec l'option **Tempo** (index `EASF01` à `EASF06`, `NTARF`, `SINSTS`…).
+- Entités nommées `sensor.lixee_*` (appareil nommé « Lixee » dans Home Assistant). Avec un autre nom, renommez l'appareil ou adaptez les requêtes.
+
+Installation :
+
+1. Dans `configuration.yaml`, activez l'export Prometheus limité au ZLinky, puis redémarrez Home Assistant :
+   ~~~yaml
+   prometheus:
+     filter:
+       include_entity_globs:
+         - sensor.lixee*
+   ~~~
+2. Dans l'application VictoriaMetrics de Home Assistant, activez **Collect Home Assistant metrics** (`Scrape interval` : `60s`), puis redémarrez-la.
+3. **Dashboards → New → Import**, choisissez `dashboards/zlinky-linky-temps-reel.json`, puis la source VictoriaMetrics.
+
+Index Tempo du mode standard : `EASF01` HC Bleu, `EASF02` HP Bleu, `EASF03` HC Blanc, `EASF04` HP Blanc, `EASF05` HC Rouge, `EASF06` HP Rouge.
+
+Les consommations sont calculées à partir des index collectés : elles se remplissent à partir du moment où la collecte démarre.
 
 ## Bon à savoir
 
