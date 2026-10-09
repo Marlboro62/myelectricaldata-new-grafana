@@ -4,6 +4,8 @@
 
 Trois tableaux de bord Grafana qui lisent directement la base **PostgreSQL** de l'add-on Home Assistant [MyElectricalData new](https://github.com/Marlboro62/hassio-addons/tree/master/myelectricaldata_new) (consommation Linky journalière et à la demi-heure, couleurs Tempo, puissance max, grilles tarifaires).
 
+Un quatrième dashboard lit les données envoyées à **VictoriaMetrics** par l'export de l'interface MyElectricalData, sans ouvrir le port de la base (voir [Dashboard VictoriaMetrics](#dashboard-victoriametrics-sans-postgresql)).
+
 ## 🧩 Fait partie de l'écosystème MyElectricalData new
 
 Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'équipe MyElectricalData. Ils s'appuient sur le [mode client de MyElectricalData new](https://github.com/MyElectricalData/myelectricaldata_new), relié à la passerelle [www.v2.myelectricaldata.fr](https://www.v2.myelectricaldata.fr).
@@ -22,6 +24,7 @@ Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'�
 | `dashboards/linky-tempo.json` | Tempo du jour et du lendemain, jours rouges/blancs restants, consommation par couleur, courbe de charge, puissance max, coût réel Tempo (année de facturation et période) | Création originale |
 | `dashboards/my-electrical-data-new.json` | Consommation et coût HC/HP, classe énergétique, comparaison Tempo / offre Base, bilans annuels et mensuels | Adapté du dashboard de **geobar78** |
 | `dashboards/myelectricaldata-enedis-new.json` | Consommation HC/HP, classe énergétique en énergie primaire, bilans sur 4 années, évolution à période égale | Adapté du dashboard de **HermesHonshappo** |
+| `dashboards/myelectricaldata-victoriametrics.json` | Tempo du jour et du lendemain, jours restants, consommation du mois et de l'année, consommation journalière, courbe de charge, consommation glissante sur 30 jours, répartition par couleur Tempo (source VictoriaMetrics) | Création originale |
 
 ## Remerciements
 
@@ -65,6 +68,17 @@ Testé avec l'add-on MyElectricalData new en version 2.4.4.2.
    - TLS/SSL Mode : `disable`
 2. **Dashboards → New → Import**, choisir un fichier JSON, sélectionner la source PostgreSQL, **Import**.
 3. Ajuster les variables en haut du dashboard : puissance souscrite, surface du logement, début d'année de facturation…
+
+## Dashboard VictoriaMetrics (sans PostgreSQL)
+
+Une alternative aux dashboards PostgreSQL : MyElectricalData pousse ses données vers VictoriaMetrics, et Grafana les lit comme une source Prometheus. Pas besoin d'ouvrir le port `5432` de l'add-on.
+
+1. Installez VictoriaMetrics (par exemple l'application VictoriaMetrics de Home Assistant) et réglez la **déduplication à `1m`** (option `Deduplication interval`, ou `-dedup.minScrapeInterval=1m`) : l'export renvoie tout l'historique à chaque passage, la déduplication évite les doublons.
+2. Dans l'interface MyElectricalData, ouvrez l'export **VictoriaMetrics**, renseignez l'URL (par exemple `http://IP:8428`) et les identifiants si l'accès est protégé, puis activez-le.
+3. Dans Grafana : **Connections → Data sources → Add → Prometheus**, avec la même URL (et l'authentification basique si besoin).
+4. **Dashboards → New → Import**, choisissez `dashboards/myelectricaldata-victoriametrics.json`, puis la source VictoriaMetrics.
+
+> ⚠️ **Sécurité** : gardez l'authentification de VictoriaMetrics activée et n'exposez jamais le port `8428` sur Internet.
 
 ## Bon à savoir
 
