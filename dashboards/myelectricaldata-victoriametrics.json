@@ -54,7 +54,7 @@
   "graphTooltip": 1,
   "refresh": "30m",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "time": {
     "from": "now-90d",
     "to": "now"
@@ -88,7 +88,7 @@
             "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
-          "expr": "last_over_time(tempo_color_color_value{day=\"today\"}[1d])",
+          "expr": "last_over_time(tempo_color_color_value{day=\"today\"}[1d] @ now())",
           "legendFormat": "",
           "refId": "A",
           "range": false,
@@ -166,7 +166,7 @@
             "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
-          "expr": "last_over_time(tempo_color_color_value{day=\"tomorrow\"}[1d])",
+          "expr": "last_over_time(tempo_color_color_value{day=\"tomorrow\"}[1d] @ now())",
           "legendFormat": "",
           "refId": "A",
           "range": false,
@@ -244,7 +244,7 @@
             "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
-          "expr": "last_over_time(tempo_days_remaining[1d])",
+          "expr": "last_over_time(tempo_days_remaining[1d] @ now())",
           "legendFormat": "{{color}}",
           "refId": "A",
           "range": false,
@@ -348,7 +348,7 @@
             "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
-          "expr": "last_over_time(electricity_stats_value_kwh{direction=\"consumption\",period=\"this_month\"}[1d])",
+          "expr": "last_over_time(electricity_stats_value_kwh{direction=\"consumption\",period=\"this_month\"}[1d] @ now())",
           "legendFormat": "",
           "refId": "A",
           "range": false,
@@ -401,7 +401,7 @@
             "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
-          "expr": "last_over_time(electricity_stats_value_kwh{direction=\"consumption\",period=\"this_year\"}[1d])",
+          "expr": "last_over_time(electricity_stats_value_kwh{direction=\"consumption\",period=\"this_year\"}[1d] @ now())",
           "legendFormat": "",
           "refId": "A",
           "range": false,
@@ -623,7 +623,7 @@
             "type": "prometheus",
             "uid": "${DS_VICTORIAMETRICS}"
           },
-          "expr": "last_over_time(electricity_tempo_value_kwh{period=\"this_year\"}[1d])",
+          "expr": "last_over_time(electricity_tempo_value_kwh{period=\"this_year\"}[1d] @ now())",
           "legendFormat": "{{color}}",
           "refId": "A",
           "range": false,
