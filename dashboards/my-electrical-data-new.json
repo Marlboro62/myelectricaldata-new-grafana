@@ -402,7 +402,7 @@
     },
     {
       "type": "gauge",
-      "title": "Classe énergétique (12 derniers mois)",
+      "title": "Classe énergétique DPE 2026 (estimation)",
       "gridPos": {
         "h": 6,
         "w": 4,
@@ -413,14 +413,14 @@
         "type": "grafana-postgresql-datasource",
         "uid": "${DS_MED}"
       },
-      "description": "kWh/m²/an sur les 365 derniers jours, rapportés à la surface saisie dans la variable « Surface de la maison ». Indicatif : énergie finale électrique seulement, pas le calcul officiel du DPE.",
+      "description": "Conso électrique des 365 derniers jours ÷ surface (variable « Surface de la maison ») × 1,9. Seuils du DPE en vigueur (A ≤ 70 … G > 420 kWh EP/m²/an), coefficient de l'électricité 1,9 depuis le 1er janvier 2026. Indicatif : le vrai DPE (méthode 3CL) se calcule sur le bâti et les seuls usages réglementaires, pas sur la facture.",
       "targets": [
         {
           "refId": "A",
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT SUM(c.value) / 1000.0 / $surface_maison AS \"kWh/m²/an\" FROM consumption_data c\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND c.date > current_date - 365"
+          "rawSql": "SELECT round(SUM(c.value) / 1000.0 / $surface_maison * 1.9) AS \"kWh EP/m²/an\" FROM consumption_data c\nWHERE c.granularity = 'daily' AND c.usage_point_id = '$pdl' AND c.date > current_date - 365"
         }
       ],
       "options": {
@@ -441,92 +441,81 @@
           "decimals": 0,
           "mappings": [
             {
-              "options": {
-                "451": {
-                  "text": "G"
-                }
-              },
-              "type": "value"
-            },
-            {
-              "options": {
-                "from": -100,
-                "result": {
-                  "text": "BEPOS (RT2020)"
-                },
-                "to": -1
-              },
-              "type": "range"
-            },
-            {
+              "type": "range",
               "options": {
                 "from": 0,
+                "to": 70,
                 "result": {
-                  "text": "Maison Passive"
-                },
-                "to": 15
-              },
-              "type": "range"
+                  "text": "A",
+                  "index": 0
+                }
+              }
             },
             {
+              "type": "range",
               "options": {
-                "from": 16,
+                "from": 70,
+                "to": 110,
                 "result": {
-                  "text": "A (RT2012)"
-                },
-                "to": 50
-              },
-              "type": "range"
+                  "text": "B",
+                  "index": 1
+                }
+              }
             },
             {
+              "type": "range",
               "options": {
-                "from": 51,
+                "from": 110,
+                "to": 180,
                 "result": {
-                  "text": "B (RT2005)"
-                },
-                "to": 90
-              },
-              "type": "range"
+                  "text": "C",
+                  "index": 2
+                }
+              }
             },
             {
+              "type": "range",
               "options": {
-                "from": 91,
+                "from": 180,
+                "to": 250,
                 "result": {
-                  "text": "C (RT2000)"
-                },
-                "to": 150
-              },
-              "type": "range"
+                  "text": "D",
+                  "index": 3
+                }
+              }
             },
             {
+              "type": "range",
               "options": {
-                "from": 151,
+                "from": 250,
+                "to": 330,
                 "result": {
-                  "text": "D (RT1988)"
-                },
-                "to": 230
-              },
-              "type": "range"
+                  "text": "E",
+                  "index": 4
+                }
+              }
             },
             {
+              "type": "range",
               "options": {
-                "from": 231,
+                "from": 330,
+                "to": 420,
                 "result": {
-                  "text": "E (RT1982)"
-                },
-                "to": 330
-              },
-              "type": "range"
+                  "text": "F",
+                  "index": 5
+                }
+              }
             },
             {
+              "type": "range",
               "options": {
-                "from": 331,
+                "from": 420,
+                "to": 100000,
                 "result": {
-                  "text": "F (RT1974)"
-                },
-                "to": 450
-              },
-              "type": "range"
+                  "text": "G",
+                  "index": 6
+                }
+              }
             }
           ],
           "max": 500,
@@ -534,48 +523,32 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#299c46",
+                "color": "#009C6D",
                 "value": null
               },
               {
-                "color": "super-light-purple",
-                "value": -1
+                "color": "#52B153",
+                "value": 70
               },
               {
-                "color": "super-light-blue",
-                "value": 0
+                "color": "#78BD76",
+                "value": 110
               },
               {
-                "color": "super-light-green",
-                "value": 15
+                "color": "#F4E70F",
+                "value": 180
               },
               {
-                "color": "light-green",
-                "value": 50
+                "color": "#F0B40F",
+                "value": 250
               },
               {
-                "color": "semi-dark-green",
-                "value": 90
-              },
-              {
-                "color": "dark-yellow",
-                "value": 150
-              },
-              {
-                "color": "light-yellow",
-                "value": 230
-              },
-              {
-                "color": "light-orange",
+                "color": "#EB8235",
                 "value": 330
               },
               {
-                "color": "dark-orange",
-                "value": 450
-              },
-              {
-                "color": "red",
-                "value": 451
+                "color": "#D7221F",
+                "value": 420
               }
             ]
           },
