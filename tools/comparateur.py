@@ -95,19 +95,30 @@ def core(by_month: bool = False) -> str:
 )"""
 
 
+def type_label(col="offer_type"):
+    return f"""CASE {col} WHEN 'BASE' THEN 'Base' WHEN 'HC_HP' THEN 'Heures creuses' WHEN 'WEEKEND' THEN 'Week-end'
+    WHEN 'HC_NUIT_WEEKEND' THEN 'HC nuit et week-end' WHEN 'SEASONAL' THEN 'Saisonnière' WHEN 'TEMPO' THEN 'Tempo'
+    ELSE {col} END"""
+
+
+def nom(f="fournisseur", o="offre", t="offer_type"):
+    # Un fournisseur peut proposer une offre du même nom en Base et en HC : le type fait partie de la clé
+    return f"{f} || ' – ' || {o} || ' (' || {type_label(t)} || ')'"
+
+
+TYPE_LABEL = type_label()
+
+
 ANNUEL = """, annuel AS (
-  SELECT c.fournisseur || ' – ' || c.offre AS nom, c.fournisseur, c.offre, c.offer_type,
+  SELECT """ + nom("c.fournisseur", "c.offre", "c.offer_type") + """ AS nom, c.fournisseur, c.offre, c.offer_type,
     c.subscription_price * 12 AS abo_an,
     c.energie * 365.0 / NULLIF(i.jours, 0) AS energie_an,
     c.subscription_price * 12 + c.energie * 365.0 / NULLIF(i.jours, 0) AS total_an
   FROM couts c, info i
 )"""
 
-TYPE_LABEL = """CASE offer_type WHEN 'BASE' THEN 'Base' WHEN 'HC_HP' THEN 'Heures creuses' WHEN 'WEEKEND' THEN 'Week-end'
-    WHEN 'HC_NUIT_WEEKEND' THEN 'HC nuit et week-end' WHEN 'SEASONAL' THEN 'Saisonnière' WHEN 'TEMPO' THEN 'Tempo'
-    ELSE offer_type END"""
 
-ACTUELLE = "(SELECT total_an FROM annuel WHERE nom = '$offre_actuelle')"
+ACTUELLE = "(SELECT min(total_an) FROM annuel WHERE nom = '$offre_actuelle')"
 
 Q = {
     "jours": core() + "\nSELECT jours AS \"Jours\" FROM info",
@@ -136,14 +147,14 @@ ORDER BY offer_type, total_an""",
         "FROM couts c, info i", "FROM (SELECT fournisseur, offre, offer_type, subscription_price, sum(energie) AS energie FROM couts GROUP BY 1, 2, 3, 4) c, info i"
     ) + """, meilleure AS (SELECT nom FROM annuel ORDER BY total_an LIMIT 1)
 SELECT mois_d::timestamp AT TIME ZONE 'Europe/Paris' AS time,
-  sum(energie + subscription_price) FILTER (WHERE fournisseur || ' – ' || offre = '$offre_actuelle') AS "Offre actuelle",
-  sum(energie + subscription_price) FILTER (WHERE fournisseur || ' – ' || offre = (SELECT nom FROM meilleure)) AS "Meilleure offre"
+  sum(energie + subscription_price) FILTER (WHERE """ + nom() + """ = '$offre_actuelle') AS "Offre actuelle",
+  sum(energie + subscription_price) FILTER (WHERE """ + nom() + """ = (SELECT nom FROM meilleure)) AS "Meilleure offre"
 FROM couts
 GROUP BY 1
 ORDER BY 1""",
 }
 
-VAR_OFFRES = f"""SELECT DISTINCT ep.name || ' – ' || eo.name
+VAR_OFFRES = f"""SELECT DISTINCT {nom("ep.name", "eo.name", "eo.offer_type")}
 FROM energy_offers eo JOIN energy_providers ep ON ep.id = eo.provider_id
 WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active AND eo.offer_type IN {TYPES}
 ORDER BY 1"""
@@ -193,6 +204,7 @@ def dashboard():
                   desc="Offre choisie dans la liste « Offre actuelle » en haut du dashboard, abonnement compris."))
     p.append(stat("Meilleure offre", Q["meilleure_nom"], {"x": 12, "y": 0, "w": 4, "h": 4},
                   fields="/^offre$/", color="green"))
+    p[-1]["options"]["text"] = {"valueSize": 18}
     p.append(stat("Coût de la meilleure offre (par an)", Q["meilleure"], {"x": 16, "y": 0, "w": 4, "h": 4},
                   unit=euro(), color="green"))
     p.append(stat("Économie possible (par an)", Q["economie"], {"x": 20, "y": 0, "w": 4, "h": 4},
@@ -228,7 +240,8 @@ def dashboard():
         "gridPos": {"x": 14, "y": 4, "w": 10, "h": 16}, "datasource": DS, "targets": target(Q["top"]),
         "options": {"orientation": "horizontal", "xField": "Offre", "showValue": "auto", "barWidth": 0.7,
                     "legend": {"showLegend": False}, "tooltip": {"mode": "single"}, "xTickLabelMaxLength": 40},
-        "fieldConfig": {"defaults": {**euro(), "color": {"mode": "continuous-GrYlRd"}, "min": 0}, "overrides": []},
+        "fieldConfig": {"defaults": {**euro(), "color": {"mode": "continuous-GrYlRd"},
+                                     "custom": {"axisSoftMin": 0, "fillOpacity": 85}}, "overrides": []},
     })
     p.append({
         "type": "table", "title": "Meilleure offre par type",
