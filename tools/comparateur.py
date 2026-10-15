@@ -165,7 +165,7 @@ def target(sql):
 
 
 def euro(decimals=0):
-    return {"unit": "currencyEUR", "decimals": decimals}
+    return {"unit": "suffix: €", "decimals": decimals}
 
 
 def stat(title, sql, pos, unit=None, color="text", fields="", desc="", no_value="—"):
@@ -184,7 +184,8 @@ def stat(title, sql, pos, unit=None, color="text", fields="", desc="", no_value=
 
 def money_override(name, decimals=0):
     return {"matcher": {"id": "byName", "options": name},
-            "properties": [{"id": "unit", "value": "currencyEUR"}, {"id": "decimals", "value": decimals}]}
+            "properties": [{"id": "unit", "value": "suffix: €"}, {"id": "decimals", "value": decimals},
+                           {"id": "custom.width", "value": 120}]}
 
 
 def dashboard():
@@ -198,7 +199,7 @@ def dashboard():
                   color="text"))
     p[-1]["fieldConfig"]["defaults"]["color"] = {"mode": "thresholds"}
     p.append(stat("Consommation ramenée à l'année", Q["conso"], {"x": 4, "y": 0, "w": 4, "h": 4},
-                  unit={"unit": "kwatth", "decimals": 0}))
+                  unit={"unit": "suffix: kWh", "decimals": 0}))
     p.append(stat("Votre offre actuelle (par an)", Q["actuelle"], {"x": 8, "y": 0, "w": 4, "h": 4},
                   unit=euro(), color="blue", no_value="Choisissez votre offre",
                   desc="Offre choisie dans la liste « Offre actuelle » en haut du dashboard, abonnement compris."))
@@ -212,7 +213,7 @@ def dashboard():
 
     p.append({
         "type": "table", "title": "Classement des offres (coût ramené à un an, abonnement compris)",
-        "gridPos": {"x": 0, "y": 4, "w": 14, "h": 16}, "datasource": DS, "targets": target(Q["classement"]),
+        "gridPos": {"x": 0, "y": 4, "w": 24, "h": 14}, "datasource": DS, "targets": target(Q["classement"]),
         "options": {"showHeader": True, "cellHeight": "sm", "footer": {"show": False}},
         "fieldConfig": {
             "defaults": {"custom": {"align": "auto", "filterable": True}},
@@ -220,15 +221,19 @@ def dashboard():
                 money_override("Abonnement / an"), money_override("Énergie / an"), money_override("Total / an"),
                 {"matcher": {"id": "byName", "options": "Total / an"},
                  "properties": [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
-                                {"id": "color", "value": {"mode": "continuous-GrYlRd"}}]},
+                                {"id": "color", "value": {"mode": "fixed", "fixedColor": "text"}}]},
                 {"matcher": {"id": "byName", "options": "Écart avec l'offre actuelle"},
-                 "properties": [{"id": "unit", "value": "currencyEUR"}, {"id": "decimals", "value": 0},
+                 "properties": [{"id": "unit", "value": "suffix: €"}, {"id": "decimals", "value": 0},
                                 {"id": "custom.cellOptions", "value": {"type": "color-text"}},
                                 {"id": "thresholds", "value": {"mode": "absolute", "steps": [
                                     {"color": "green", "value": None}, {"color": "text", "value": -0.5},
                                     {"color": "red", "value": 0.5}]}},
                                 {"id": "color", "value": {"mode": "thresholds"}}]},
                 {"matcher": {"id": "byName", "options": "Rang"}, "properties": [{"id": "custom.width", "value": 60}]},
+                {"matcher": {"id": "byName", "options": "Fournisseur"}, "properties": [{"id": "custom.width", "value": 150}]},
+                {"matcher": {"id": "byName", "options": "Type"}, "properties": [{"id": "custom.width", "value": 170}]},
+                {"matcher": {"id": "byName", "options": "Écart avec l'offre actuelle"}, "properties": [{"id": "custom.width", "value": 200}]},
+                {"matcher": {"id": "byName", "options": "Note"}, "properties": [{"id": "custom.width", "value": 120}]},
                 {"matcher": {"id": "byName", "options": "Note"},
                  "properties": [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
                                 {"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]},
@@ -237,20 +242,20 @@ def dashboard():
     })
     p.append({
         "type": "barchart", "title": "Les 15 offres les moins chères (par an)",
-        "gridPos": {"x": 14, "y": 4, "w": 10, "h": 16}, "datasource": DS, "targets": target(Q["top"]),
+        "gridPos": {"x": 0, "y": 26, "w": 24, "h": 13}, "datasource": DS, "targets": target(Q["top"]),
         "options": {"orientation": "horizontal", "xField": "Offre", "showValue": "auto", "barWidth": 0.7,
-                    "legend": {"showLegend": False}, "tooltip": {"mode": "single"}, "xTickLabelMaxLength": 40},
-        "fieldConfig": {"defaults": {**euro(), "color": {"mode": "continuous-GrYlRd"},
-                                     "custom": {"axisSoftMin": 0, "fillOpacity": 85}}, "overrides": []},
+                    "legend": {"showLegend": False}, "tooltip": {"mode": "single"}, "xTickLabelMaxLength": 70},
+        "fieldConfig": {"defaults": {**euro(), "color": {"mode": "fixed", "fixedColor": "green"},
+                                     "custom": {"axisSoftMin": 0, "fillOpacity": 80}}, "overrides": []},
     })
     p.append({
         "type": "table", "title": "Meilleure offre par type",
-        "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8}, "datasource": DS, "targets": target(Q["par_type"]),
+        "gridPos": {"x": 0, "y": 18, "w": 12, "h": 8}, "datasource": DS, "targets": target(Q["par_type"]),
         "options": {"showHeader": True, "cellHeight": "sm"},
         "fieldConfig": {"defaults": {}, "overrides": [
             money_override("Total / an"),
             {"matcher": {"id": "byName", "options": "Écart avec l'offre actuelle"},
-             "properties": [{"id": "unit", "value": "currencyEUR"}, {"id": "decimals", "value": 0},
+             "properties": [{"id": "unit", "value": "suffix: €"}, {"id": "decimals", "value": 0},
                             {"id": "custom.cellOptions", "value": {"type": "color-text"}},
                             {"id": "thresholds", "value": {"mode": "absolute", "steps": [
                                 {"color": "green", "value": None}, {"color": "text", "value": -0.5},
@@ -260,7 +265,7 @@ def dashboard():
     })
     p.append({
         "type": "barchart", "title": "Coût mois par mois : offre actuelle et meilleure offre",
-        "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8}, "datasource": DS, "targets": target(Q["mensuel"]),
+        "gridPos": {"x": 12, "y": 18, "w": 12, "h": 8}, "datasource": DS, "targets": target(Q["mensuel"]),
         "options": {"orientation": "vertical", "xField": "time", "showValue": "never", "groupWidth": 0.7,
                     "barWidth": 0.9, "legend": {"showLegend": True, "displayMode": "list", "placement": "bottom"},
                     "tooltip": {"mode": "multi"}, "xTickLabelRotation": 0, "xTickLabelSpacing": 0},
@@ -274,7 +279,7 @@ def dashboard():
         ]},
     })
     p.append({
-        "type": "text", "title": "Comment c'est calculé", "gridPos": {"x": 0, "y": 28, "w": 24, "h": 6},
+        "type": "text", "title": "Comment c'est calculé", "gridPos": {"x": 0, "y": 39, "w": 24, "h": 6},
         "options": {"mode": "markdown", "content": (
             "- **Votre consommation réelle** : la courbe de charge Enedis (pas de 30 ou 15 minutes) sur la période "
             "choisie en haut à droite, **ramenée à une année**. Avec moins de 12 mois de données, le résultat dépend "

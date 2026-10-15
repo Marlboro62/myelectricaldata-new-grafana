@@ -181,7 +181,7 @@
             "fixedColor": "text"
           },
           "noValue": "—",
-          "unit": "kwatth",
+          "unit": "suffix: kWh",
           "decimals": 0
         },
         "overrides": []
@@ -235,7 +235,7 @@
             "fixedColor": "blue"
           },
           "noValue": "Choisissez votre offre",
-          "unit": "currencyEUR",
+          "unit": "suffix: €",
           "decimals": 0
         },
         "overrides": []
@@ -344,7 +344,7 @@
             "fixedColor": "green"
           },
           "noValue": "—",
-          "unit": "currencyEUR",
+          "unit": "suffix: €",
           "decimals": 0
         },
         "overrides": []
@@ -398,7 +398,7 @@
             "fixedColor": "green"
           },
           "noValue": "Choisissez votre offre",
-          "unit": "currencyEUR",
+          "unit": "suffix: €",
           "decimals": 0
         },
         "overrides": []
@@ -410,8 +410,8 @@
       "gridPos": {
         "x": 0,
         "y": 4,
-        "w": 14,
-        "h": 16
+        "w": 24,
+        "h": 14
       },
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -453,11 +453,15 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "currencyEUR"
+                "value": "suffix: €"
               },
               {
                 "id": "decimals",
                 "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -469,11 +473,15 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "currencyEUR"
+                "value": "suffix: €"
               },
               {
                 "id": "decimals",
                 "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -485,11 +493,15 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "currencyEUR"
+                "value": "suffix: €"
               },
               {
                 "id": "decimals",
                 "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -508,7 +520,8 @@
               {
                 "id": "color",
                 "value": {
-                  "mode": "continuous-GrYlRd"
+                  "mode": "fixed",
+                  "fixedColor": "text"
                 }
               }
             ]
@@ -521,7 +534,7 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "currencyEUR"
+                "value": "suffix: €"
               },
               {
                 "id": "decimals",
@@ -576,6 +589,54 @@
           {
             "matcher": {
               "id": "byName",
+              "options": "Fournisseur"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Type"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Écart avec l'offre actuelle"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Note"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "Note"
             },
             "properties": [
@@ -601,10 +662,10 @@
       "type": "barchart",
       "title": "Les 15 offres les moins chères (par an)",
       "gridPos": {
-        "x": 14,
-        "y": 4,
-        "w": 10,
-        "h": 16
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 13
       },
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -634,18 +695,19 @@
         "tooltip": {
           "mode": "single"
         },
-        "xTickLabelMaxLength": 40
+        "xTickLabelMaxLength": 70
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "currencyEUR",
+          "unit": "suffix: €",
           "decimals": 0,
           "color": {
-            "mode": "continuous-GrYlRd"
+            "mode": "fixed",
+            "fixedColor": "green"
           },
           "custom": {
             "axisSoftMin": 0,
-            "fillOpacity": 85
+            "fillOpacity": 80
           }
         },
         "overrides": []
@@ -656,7 +718,7 @@
       "title": "Meilleure offre par type",
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 18,
         "w": 12,
         "h": 8
       },
@@ -692,11 +754,15 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "currencyEUR"
+                "value": "suffix: €"
               },
               {
                 "id": "decimals",
                 "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 120
               }
             ]
           },
@@ -708,7 +774,7 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "currencyEUR"
+                "value": "suffix: €"
               },
               {
                 "id": "decimals",
@@ -756,7 +822,7 @@
       "title": "Coût mois par mois : offre actuelle et meilleure offre",
       "gridPos": {
         "x": 12,
-        "y": 20,
+        "y": 18,
         "w": 12,
         "h": 8
       },
@@ -796,7 +862,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "currencyEUR",
+          "unit": "suffix: €",
           "decimals": 0,
           "min": 0
         },
@@ -851,7 +917,7 @@
       "title": "Comment c'est calculé",
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 39,
         "w": 24,
         "h": 6
       },
