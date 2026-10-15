@@ -18,7 +18,7 @@ TYPES = "('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')"
 
 def core(by_month: bool = False) -> str:
     """Socle commun. by_month : coûts aussi ventilés par mois (graphique mensuel)."""
-    m = "date_trunc('month', date)::date AS mois_d, " if by_month else ""
+    m = "date_trunc('month', x.date)::date AS mois_d, " if by_month else ""
     mg = ", mois_d" if by_month else ""
     return f"""WITH pts AS (
   -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour
