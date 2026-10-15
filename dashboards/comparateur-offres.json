@@ -1,0 +1,858 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_MED",
+      "label": "MyElectricalData new",
+      "description": "Source PostgreSQL de l'add-on MyElectricalData new",
+      "type": "datasource",
+      "pluginId": "grafana-postgresql-datasource",
+      "pluginName": "PostgreSQL"
+    }
+  ],
+  "title": "Comparateur d'offres",
+  "uid": "med-comparateur-offres",
+  "description": "Combien vous aurait coûté votre consommation réelle avec chaque offre (MyElectricalData new)",
+  "tags": [
+    "myelectricaldata",
+    "linky",
+    "tarifs"
+  ],
+  "timezone": "Europe/Paris",
+  "time": {
+    "from": "now-1y",
+    "to": "now"
+  },
+  "editable": true,
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "puissance_kva",
+        "label": "Puissance souscrite (kVA)",
+        "query": "6",
+        "current": {
+          "text": "6",
+          "value": "6"
+        },
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "plages_hc",
+        "label": "Plages HC (ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30)",
+        "query": "22:00-06:00",
+        "current": {
+          "text": "22:00-06:00",
+          "value": "22:00-06:00"
+        },
+        "hide": 0
+      },
+      {
+        "type": "query",
+        "name": "offre_actuelle",
+        "label": "Offre actuelle",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${DS_MED}"
+        },
+        "query": "SELECT DISTINCT ep.name || ' – ' || eo.name\nFROM energy_offers eo JOIN energy_providers ep ON ep.id = eo.provider_id\nWHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\nORDER BY 1",
+        "definition": "SELECT DISTINCT ep.name || ' – ' || eo.name\nFROM energy_offers eo JOIN energy_providers ep ON ep.id = eo.provider_id\nWHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\nORDER BY 1",
+        "refresh": 1,
+        "sort": 0,
+        "multi": false,
+        "includeAll": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Jours de courbe de charge",
+      "description": "Jours de la période choisie couverts par la courbe de charge Enedis. Les coûts sont ramenés à une année : avec moins de 12 mois, le résultat dépend des saisons couvertes.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price\n  HAVING bool_and(prix IS NOT NULL)\n)\nSELECT jours AS \"Jours\" FROM info"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "—",
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 330
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Consommation ramenée à l'année",
+      "description": "",
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price\n  HAVING bool_and(prix IS NOT NULL)\n)\nSELECT kwh * 365.0 / NULLIF(jours, 0) AS \"Consommation / an\" FROM info"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "—",
+          "unit": "kwatth",
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Votre offre actuelle (par an)",
+      "description": "Offre choisie dans la liste « Offre actuelle » en haut du dashboard, abonnement compris.",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price\n  HAVING bool_and(prix IS NOT NULL)\n), annuel AS (\n  SELECT c.fournisseur || ' – ' || c.offre AS nom, c.fournisseur, c.offre, c.offer_type,\n    c.subscription_price * 12 AS abo_an,\n    c.energie * 365.0 / NULLIF(i.jours, 0) AS energie_an,\n    c.subscription_price * 12 + c.energie * 365.0 / NULLIF(i.jours, 0) AS total_an\n  FROM couts c, info i\n)\nSELECT (SELECT total_an FROM annuel WHERE nom = '$offre_actuelle') AS \"Offre actuelle\""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "noValue": "Choisissez votre offre",
+          "unit": "currencyEUR",
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Meilleure offre",
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price\n  HAVING bool_and(prix IS NOT NULL)\n), annuel AS (\n  SELECT c.fournisseur || ' – ' || c.offre AS nom, c.fournisseur, c.offre, c.offer_type,\n    c.subscription_price * 12 AS abo_an,\n    c.energie * 365.0 / NULLIF(i.jours, 0) AS energie_an,\n    c.subscription_price * 12 + c.energie * 365.0 / NULLIF(i.jours, 0) AS total_an\n  FROM couts c, info i\n)\nSELECT nom AS \"offre\" FROM annuel ORDER BY total_an LIMIT 1"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^offre$/"
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "noValue": "—"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Coût de la meilleure offre (par an)",
+      "description": "",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price\n  HAVING bool_and(prix IS NOT NULL)\n), annuel AS (\n  SELECT c.fournisseur || ' – ' || c.offre AS nom, c.fournisseur, c.offre, c.offer_type,\n    c.subscription_price * 12 AS abo_an,\n    c.energie * 365.0 / NULLIF(i.jours, 0) AS energie_an,\n    c.subscription_price * 12 + c.energie * 365.0 / NULLIF(i.jours, 0) AS total_an\n  FROM couts c, info i\n)\nSELECT min(total_an) AS \"Meilleure offre\" FROM annuel"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "noValue": "—",
+          "unit": "currencyEUR",
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Économie possible (par an)",
+      "description": "",
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price\n  HAVING bool_and(prix IS NOT NULL)\n), annuel AS (\n  SELECT c.fournisseur || ' – ' || c.offre AS nom, c.fournisseur, c.offre, c.offer_type,\n    c.subscription_price * 12 AS abo_an,\n    c.energie * 365.0 / NULLIF(i.jours, 0) AS energie_an,\n    c.subscription_price * 12 + c.energie * 365.0 / NULLIF(i.jours, 0) AS total_an\n  FROM couts c, info i\n)\nSELECT (SELECT total_an FROM annuel WHERE nom = '$offre_actuelle') - min(total_an) AS \"Économie possible\" FROM annuel"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "wideLayout": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
+          "noValue": "Choisissez votre offre",
+          "unit": "currencyEUR",
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "Classement des offres (coût ramené à un an, abonnement compris)",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 14,
+        "h": 16
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price\n  HAVING bool_and(prix IS NOT NULL)\n), annuel AS (\n  SELECT c.fournisseur || ' – ' || c.offre AS nom, c.fournisseur, c.offre, c.offer_type,\n    c.subscription_price * 12 AS abo_an,\n    c.energie * 365.0 / NULLIF(i.jours, 0) AS energie_an,\n    c.subscription_price * 12 + c.energie * 365.0 / NULLIF(i.jours, 0) AS total_an\n  FROM couts c, info i\n)\nSELECT rank() OVER (ORDER BY total_an) AS \"Rang\",\n  fournisseur AS \"Fournisseur\", offre AS \"Offre\", CASE offer_type WHEN 'BASE' THEN 'Base' WHEN 'HC_HP' THEN 'Heures creuses' WHEN 'WEEKEND' THEN 'Week-end'\n    WHEN 'HC_NUIT_WEEKEND' THEN 'HC nuit et week-end' WHEN 'SEASONAL' THEN 'Saisonnière' WHEN 'TEMPO' THEN 'Tempo'\n    ELSE offer_type END AS \"Type\",\n  abo_an AS \"Abonnement / an\", energie_an AS \"Énergie / an\", total_an AS \"Total / an\",\n  total_an - (SELECT total_an FROM annuel WHERE nom = '$offre_actuelle') AS \"Écart avec l'offre actuelle\",\n  CASE WHEN nom = '$offre_actuelle' THEN 'Offre actuelle' ELSE '' END AS \"Note\"\nFROM annuel\nORDER BY total_an"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Abonnement / an"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyEUR"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Énergie / an"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyEUR"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total / an"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyEUR"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total / an"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Écart avec l'offre actuelle"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyEUR"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "text",
+                      "value": -0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.5
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Rang"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 60
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Note"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Les 15 offres les moins chères (par an)",
+      "gridPos": {
+        "x": 14,
+        "y": 4,
+        "w": 10,
+        "h": 16
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price\n  HAVING bool_and(prix IS NOT NULL)\n), annuel AS (\n  SELECT c.fournisseur || ' – ' || c.offre AS nom, c.fournisseur, c.offre, c.offer_type,\n    c.subscription_price * 12 AS abo_an,\n    c.energie * 365.0 / NULLIF(i.jours, 0) AS energie_an,\n    c.subscription_price * 12 + c.energie * 365.0 / NULLIF(i.jours, 0) AS total_an\n  FROM couts c, info i\n)\nSELECT nom AS \"Offre\", total_an AS \"Total / an\"\nFROM annuel ORDER BY total_an LIMIT 15"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "xField": "Offre",
+        "showValue": "auto",
+        "barWidth": 0.7,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        },
+        "xTickLabelMaxLength": 40
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR",
+          "decimals": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "table",
+      "title": "Meilleure offre par type",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price\n  HAVING bool_and(prix IS NOT NULL)\n), annuel AS (\n  SELECT c.fournisseur || ' – ' || c.offre AS nom, c.fournisseur, c.offre, c.offer_type,\n    c.subscription_price * 12 AS abo_an,\n    c.energie * 365.0 / NULLIF(i.jours, 0) AS energie_an,\n    c.subscription_price * 12 + c.energie * 365.0 / NULLIF(i.jours, 0) AS total_an\n  FROM couts c, info i\n)\nSELECT DISTINCT ON (offer_type) CASE offer_type WHEN 'BASE' THEN 'Base' WHEN 'HC_HP' THEN 'Heures creuses' WHEN 'WEEKEND' THEN 'Week-end'\n    WHEN 'HC_NUIT_WEEKEND' THEN 'HC nuit et week-end' WHEN 'SEASONAL' THEN 'Saisonnière' WHEN 'TEMPO' THEN 'Tempo'\n    ELSE offer_type END AS \"Type\", fournisseur AS \"Fournisseur\", offre AS \"Offre\",\n  total_an AS \"Total / an\", total_an - (SELECT total_an FROM annuel WHERE nom = '$offre_actuelle') AS \"Écart avec l'offre actuelle\"\nFROM annuel\nORDER BY offer_type, total_an"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total / an"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyEUR"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Écart avec l'offre actuelle"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyEUR"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "text",
+                      "value": -0.5
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.5
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Coût mois par mois : offre actuelle et meilleure offre",
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${DS_MED}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${DS_MED}"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "WITH pts AS (\n  -- Courbe de charge : valeur = puissance moyenne (W) sur le pas, pas de 30 ou 15 min selon le jour\n  SELECT c.date,\n    c.interval_start::time AS t,\n    extract(isodow FROM c.date)::int AS dow,\n    extract(month FROM c.date)::int AS mois,\n    ((c.date + c.interval_start::time) - interval '6 hours')::date AS tempo_date,\n    c.value / 1000.0 * 24.0 / count(*) OVER (PARTITION BY c.usage_point_id, c.date) AS kwh\n  FROM consumption_data c\n  WHERE c.granularity = 'detailed'\n    AND c.date BETWEEN ($__timeFrom()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n                   AND ($__timeTo()::timestamptz AT TIME ZONE 'Europe/Paris')::date\n), saisie AS (\n  -- Plages HC Enedis de l'utilisateur, ex. 22:00-06:00 ou 01:30-07:30;12:30-14:30\n  SELECT split_part(p, '-', 1)::time AS deb, split_part(p, '-', 2)::time AS fin\n  FROM unnest(string_to_array(replace('$plages_hc', ' ', ''), ';')) AS p\n  WHERE p LIKE '%-%'\n), plages AS (\n  SELECT deb, fin FROM saisie\n  UNION ALL SELECT '22:00'::time, '06:00'::time WHERE NOT EXISTS (SELECT 1 FROM saisie)\n), cat AS (\n  -- Les points sont regroupés par catégorie horaire : le calcul par offre reste léger\n  SELECT date_trunc('month', date)::date AS mois_d, \n    EXISTS (SELECT 1 FROM plages pl\n            WHERE (pl.deb < pl.fin AND x.t >= pl.deb AND x.t < pl.fin)\n               OR (pl.deb >= pl.fin AND (x.t >= pl.deb OR x.t < pl.fin))) AS hc,\n    (x.t >= '22:00' OR x.t < '06:00') AS hc_tempo,\n    (x.t >= '23:00' OR x.t < '06:00') AS nuit,\n    x.dow >= 6 AS we,\n    x.mois IN (11, 12, 1, 2, 3) AS hiver,\n    COALESCE(td.color::text, 'BLUE') AS couleur,\n    sum(x.kwh) AS kwh\n  FROM pts x\n  LEFT JOIN tempo_days td ON td.id = to_char(x.tempo_date, 'YYYY-MM-DD')\n  GROUP BY 1, 2, 3, 4, 5, 6, 7\n), info AS (\n  SELECT count(DISTINCT date) AS jours, sum(kwh) AS kwh, min(date) AS debut, max(date) AS fin FROM pts\n), offres AS (\n  -- Grille actuelle de chaque offre à la puissance choisie\n  SELECT DISTINCT ON (ep.name, eo.name, eo.offer_type) eo.*, ep.name AS fournisseur\n  FROM energy_offers eo\n  JOIN energy_providers ep ON ep.id = eo.provider_id\n  WHERE eo.power_kva = $puissance_kva AND eo.is_active AND ep.is_active\n    AND eo.offer_type IN ('BASE', 'HC_HP', 'WEEKEND', 'HC_NUIT_WEEKEND', 'SEASONAL', 'TEMPO')\n    AND (eo.valid_from IS NULL OR eo.valid_from <= now())\n  ORDER BY ep.name, eo.name, eo.offer_type, (eo.valid_to IS NULL OR eo.valid_to > now()) DESC,\n           eo.valid_from DESC NULLS LAST\n), prix AS (\n  SELECT o.fournisseur, o.name AS offre, o.offer_type, o.subscription_price, mois_d,\n    cat.kwh,\n    CASE o.offer_type\n      WHEN 'BASE' THEN CASE WHEN cat.we THEN COALESCE(o.base_price_weekend, o.base_price) ELSE o.base_price END\n      WHEN 'HC_NUIT_WEEKEND' THEN CASE WHEN cat.we OR cat.nuit THEN o.hc_price ELSE o.hp_price END\n      WHEN 'SEASONAL' THEN CASE WHEN cat.hiver\n        THEN CASE WHEN cat.hc THEN o.hc_price_winter ELSE o.hp_price_winter END\n        ELSE CASE WHEN cat.hc THEN o.hc_price_summer ELSE o.hp_price_summer END END\n      WHEN 'TEMPO' THEN CASE cat.couleur\n        WHEN 'RED'   THEN CASE WHEN cat.hc_tempo THEN o.tempo_red_hc   ELSE o.tempo_red_hp   END\n        WHEN 'WHITE' THEN CASE WHEN cat.hc_tempo THEN o.tempo_white_hc ELSE o.tempo_white_hp END\n        ELSE              CASE WHEN cat.hc_tempo THEN o.tempo_blue_hc  ELSE o.tempo_blue_hp  END END\n      ELSE -- HC_HP et WEEKEND : HC/HP, avec des prix week-end éventuels\n        CASE WHEN cat.we\n          THEN CASE WHEN cat.hc THEN COALESCE(o.hc_price_weekend, o.hc_price) ELSE COALESCE(o.hp_price_weekend, o.hp_price) END\n          ELSE CASE WHEN cat.hc THEN o.hc_price ELSE o.hp_price END END\n    END AS prix\n  FROM offres o CROSS JOIN cat\n), couts AS (\n  -- Une offre dont la grille est incomplète est écartée plutôt que sous-estimée\n  SELECT fournisseur, offre, offer_type, subscription_price, mois_d, sum(kwh * prix) AS energie\n  FROM prix\n  GROUP BY fournisseur, offre, offer_type, subscription_price, mois_d\n  HAVING bool_and(prix IS NOT NULL)\n), annuel AS (\n  SELECT c.fournisseur || ' – ' || c.offre AS nom, c.fournisseur, c.offre, c.offer_type,\n    c.subscription_price * 12 AS abo_an,\n    c.energie * 365.0 / NULLIF(i.jours, 0) AS energie_an,\n    c.subscription_price * 12 + c.energie * 365.0 / NULLIF(i.jours, 0) AS total_an\n  FROM (SELECT fournisseur, offre, offer_type, subscription_price, sum(energie) AS energie FROM couts GROUP BY 1, 2, 3, 4) c, info i\n), meilleure AS (SELECT nom FROM annuel ORDER BY total_an LIMIT 1)\nSELECT mois_d::timestamp AT TIME ZONE 'Europe/Paris' AS time,\n  sum(energie + subscription_price) FILTER (WHERE fournisseur || ' – ' || offre = '$offre_actuelle') AS \"Offre actuelle\",\n  sum(energie + subscription_price) FILTER (WHERE fournisseur || ' – ' || offre = (SELECT nom FROM meilleure)) AS \"Meilleure offre\"\nFROM couts\nGROUP BY 1\nORDER BY 1"
+        }
+      ],
+      "options": {
+        "orientation": "vertical",
+        "xField": "time",
+        "showValue": "never",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR",
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Offre actuelle"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Meilleure offre"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:MMM YYYY"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "title": "Comment c'est calculé",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "- **Votre consommation réelle** : la courbe de charge Enedis (pas de 30 ou 15 minutes) sur la période choisie en haut à droite, **ramenée à une année**. Avec moins de 12 mois de données, le résultat dépend des saisons couvertes (l'hiver pèse lourd en Tempo).\n- **Les tarifs actuels** de toutes les offres de la base MyElectricalData à votre puissance, abonnement compris (TTC). Une offre à la grille incomplète est écartée ; l'EJP n'est pas comparée (jours EJP inconnus).\n- **Heures creuses** : vos plages Enedis (variable « Plages HC », visibles sur votre facture ou dans l'interface MyElectricalData) pour les offres HC ; 22 h - 6 h pour Tempo ; 23 h - 6 h et tout le week-end pour les offres « nuit et week-end ». **Tempo** : les vraies couleurs des jours de la période.\n- C'est une **estimation pour comparer** : les prix évoluent, et votre consommation changerait peut-être avec une autre offre (décaler des usages en heures creuses, éviter les jours rouges…)."
+      }
+    }
+  ]
+}

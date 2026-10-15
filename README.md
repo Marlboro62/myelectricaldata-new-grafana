@@ -26,6 +26,7 @@ Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'�
 | `dashboards/linky-tempo.json` | Tempo du jour et du lendemain, jours rouges/blancs restants, consommation par couleur, courbe de charge, puissance max, coût réel Tempo (année de facturation et période) | Création originale |
 | `dashboards/my-electrical-data-new.json` | Consommation et coût HC/HP, classe énergétique, comparaison Tempo / offre Base, bilans annuels et mensuels | Adapté du dashboard de **geobar78** |
 | `dashboards/myelectricaldata-enedis-new.json` | Consommation HC/HP, classe énergétique en énergie primaire, bilans sur 4 années, évolution à période égale | Adapté du dashboard de **HermesHonshappo** |
+| `dashboards/comparateur-offres.json` | **Comparateur d'offres** : coût sur un an de votre consommation réelle avec chaque offre de la base MyElectricalData (Base, HC/HP, Tempo, week-end, saisonnières…), classement, meilleure offre par type, économie possible, coût mois par mois de votre offre et de la meilleure | Création originale |
 | `dashboards/myelectricaldata-victoriametrics.json` | Tempo du jour et du lendemain, jours restants, consommation du mois et de l'année, consommation journalière, courbe de charge, consommation glissante sur 30 jours, répartition par couleur Tempo (source VictoriaMetrics) | Création originale |
 | `dashboards/zlinky-linky-temps-reel.json` | Bonus ZLinky (LiXee) : période tarifaire en cours, puissance apparente et charge par rapport à la puissance souscrite, puissance max du jour, consommation du jour et par heure pour chacun des 6 index Tempo, tension et courant (source VictoriaMetrics) | Création originale |
 
@@ -71,6 +72,24 @@ Testé avec l'add-on MyElectricalData new en version 2.4.4.2.
    - TLS/SSL Mode : `disable`
 2. **Dashboards → New → Import**, choisir un fichier JSON, sélectionner la source PostgreSQL, **Import**.
 3. Ajuster les variables en haut du dashboard : puissance souscrite, surface du logement, début d'année de facturation…
+
+## Comparateur d'offres
+
+« Combien m'aurait coûté l'année avec une autre offre ? » Le dashboard `comparateur-offres.json` répond avec **votre courbe de charge réelle** (pas de 30 ou 15 minutes) et les **tarifs actuels** de toutes les offres présentes dans MyElectricalData à votre puissance.
+
+Réglages en haut du dashboard :
+
+| Variable | Rôle |
+| --- | --- |
+| Puissance souscrite (kVA) | Seules les offres à cette puissance sont comparées |
+| Plages HC | Vos heures creuses Enedis, par exemple `22:00-06:00` ou `01:30-07:30;12:30-14:30` (sur votre facture, ou dans l'interface MyElectricalData) |
+| Offre actuelle | Votre offre, pour calculer l'écart et l'économie possible |
+
+La période se règle avec le sélecteur de temps de Grafana (12 mois par défaut) : les coûts sont **ramenés à une année**, abonnement compris. Avec moins de 12 mois de courbe de charge, le résultat dépend des saisons couvertes (la tuile « Jours de courbe de charge » passe au vert à partir de 330 jours).
+
+Règles de calcul : vos plages HC pour les offres HC/HP, saisonnières et week-end ; 22 h - 6 h et les vraies couleurs des jours pour Tempo ; 23 h - 6 h et tout le week-end pour les offres « nuit et week-end ». Les offres EJP ne sont pas comparées (jours EJP inconnus), ni celles dont la grille est incomplète. C'est une estimation pour comparer : votre consommation changerait peut-être avec une autre offre.
+
+Le dashboard est généré par `tools/comparateur.py` (les requêtes SQL y sont lisibles et commentées).
 
 ## Dashboard VictoriaMetrics (sans PostgreSQL)
 
