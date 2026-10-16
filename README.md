@@ -2,9 +2,9 @@
 
 [![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-d32f2f?logo=buymeacoffee&logoColor=white&style=flat)](https://buymeacoffee.com/marlboro62) [![Ko-fi](https://img.shields.io/badge/Ko--fi-ff5e5b?logo=kofi&logoColor=white&style=flat)](https://ko-fi.com/nothing_one)
 
-Trois tableaux de bord Grafana qui lisent directement la base **PostgreSQL** de l'add-on Home Assistant [MyElectricalData new](https://github.com/Marlboro62/hassio-addons/tree/master/myelectricaldata_new) (consommation Linky journalière et à la demi-heure, couleurs Tempo, puissance max, grilles tarifaires).
+Quatre tableaux de bord Grafana qui lisent directement la base **PostgreSQL** de l'add-on Home Assistant [MyElectricalData new](https://github.com/Marlboro62/hassio-addons/tree/master/myelectricaldata_new) (consommation Linky journalière et à la demi-heure, couleurs Tempo, puissance max, grilles tarifaires).
 
-Un quatrième dashboard lit les données envoyées à **VictoriaMetrics** par l'export de l'interface MyElectricalData, sans ouvrir le port de la base (voir [Dashboard VictoriaMetrics](#dashboard-victoriametrics-sans-postgresql)).
+Un cinquième dashboard lit les données envoyées à **VictoriaMetrics** par l'export de l'interface MyElectricalData, sans ouvrir le port de la base (voir [Dashboard VictoriaMetrics](#dashboard-victoriametrics-sans-postgresql)).
 
 En bonus, un dashboard **ZLinky (LiXee)** affiche votre compteur Linky en temps réel, indépendamment de MyElectricalData (voir [Bonus : ZLinky en temps réel](#bonus--zlinky-lixee-en-temps-réel)).
 
@@ -17,7 +17,7 @@ Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'�
 | [Add-on Home Assistant](https://github.com/Marlboro62/hassio-addons) | Installe le mode client dans Home Assistant (interface web, synchro Linky/Tempo, PostgreSQL intégré) |
 | [Script Proxmox (LXC)](https://github.com/Marlboro62/myelectricaldata-proxmox) | Déploie le mode client dans un conteneur LXC Proxmox, sans Docker |
 | [Carte Lovelace](https://github.com/Marlboro62/content-card-linky-new) | Affiche conso, Tempo, coût et puissance max dans un tableau de bord Home Assistant |
-| **Dashboards Grafana (ce dépôt)** | Analyse la base PostgreSQL de l'add-on (Linky, Tempo, coûts) |
+| **Dashboards Grafana (ce dépôt)** | Analyse la base PostgreSQL de l'add-on (Linky, Tempo, coûts, comparateur d'offres) |
 
 ## Contenu du dépôt
 
@@ -29,6 +29,40 @@ Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'�
 | `dashboards/comparateur-offres.json` | **Comparateur d'offres** : coût sur un an de votre consommation réelle avec chaque offre de la base MyElectricalData (Base, HC/HP, Tempo, week-end, saisonnières…), classement, meilleure offre par type, économie possible, coût mois par mois de votre offre et de la meilleure | Création originale |
 | `dashboards/myelectricaldata-victoriametrics.json` | Tempo du jour et du lendemain, jours restants, consommation du mois et de l'année, consommation journalière, courbe de charge, consommation glissante sur 30 jours, répartition par couleur Tempo (source VictoriaMetrics) | Création originale |
 | `dashboards/zlinky-linky-temps-reel.json` | Bonus ZLinky (LiXee) : période tarifaire en cours, puissance apparente et charge par rapport à la puissance souscrite, puissance max du jour, consommation du jour et par heure pour chacun des 6 index Tempo, tension et courant (source VictoriaMetrics) | Création originale |
+
+## Aperçus
+
+Captures réelles, avec environ trois ans d'historique (historique de la v1 importé).
+
+### Linky / Tempo (`linky-tempo.json`)
+
+Couleur Tempo du jour et du lendemain, jours restants, consommation journalière par couleur, courbe de charge, puissance max et coût réel Tempo.
+
+![Dashboard Linky / Tempo](docs/screenshots/linky-tempo.png)
+
+### MyElectricalData new, HC/HP et DPE (`my-electrical-data-new.json`)
+
+Adapté du dashboard de geobar78 : consommation et coût HC/HP, classe énergétique, comparaison avec une offre Base, bilans de l'année en cours, N-1 et N-2.
+
+![Dashboard MyElectricalData new HC/HP et DPE](docs/screenshots/my-electrical-data-new.jpg)
+
+### Comparateur d'offres (`comparateur-offres.json`)
+
+Coût sur un an de votre consommation réelle avec chaque offre de la base MyElectricalData, classement, meilleure offre par type et coût mois par mois (voir [Comparateur d'offres](#comparateur-doffres)).
+
+![Dashboard Comparateur d'offres](docs/screenshots/comparateur-offres.png)
+
+### VictoriaMetrics (`myelectricaldata-victoriametrics.json`)
+
+Même esprit que Linky / Tempo, sans ouvrir le port de la base (voir [Dashboard VictoriaMetrics](#dashboard-victoriametrics-sans-postgresql)).
+
+![Dashboard MyElectricalData new VictoriaMetrics](docs/screenshots/myelectricaldata-victoriametrics.png)
+
+### Bonus : ZLinky en temps réel (`zlinky-linky-temps-reel.json`)
+
+Période tarifaire en cours, puissance apparente, charge, consommation par heure et par index Tempo, tension et courant, à la minute (voir [Bonus : ZLinky en temps réel](#bonus--zlinky-lixee-en-temps-réel)).
+
+![Dashboard ZLinky Linky en temps réel](docs/screenshots/zlinky-linky-temps-reel.png)
 
 ## Remerciements
 
