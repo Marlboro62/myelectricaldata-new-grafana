@@ -18,7 +18,7 @@ Ces projets sont **non officiels**, maintenus par Marlboro62, sans lien avec l'�
 | [Script Proxmox (LXC)](https://github.com/Marlboro62/myelectricaldata-proxmox) | Déploie le mode client dans un conteneur LXC Proxmox, sans Docker |
 | [Carte Lovelace](https://github.com/Marlboro62/content-card-linky-new) | Affiche conso, Tempo, coût et puissance max dans un tableau de bord Home Assistant |
 | [Carte Linky Appareils](https://github.com/Marlboro62/linky-appareils-card) | Coûts par circuit et par appareil (jour, mois, cycle), au tarif en cours |
-| [Carte Linky Solaire](https://github.com/Marlboro62/linky-solaire-card) | Produit, importé et exporté jour par jour, autoconsommation (bêta) |
+| [Carte Linky Solaire](https://github.com/Marlboro62/linky-solaire-card) | Produit, importé et exporté jour par jour, autoconsommation |
 | **Dashboards Grafana (ce dépôt)** | Analyse la base PostgreSQL de l'add-on (Linky, Tempo, coûts, comparateur d'offres) |
 
 ## Contenu du dépôt
@@ -47,6 +47,12 @@ Couleur Tempo du jour et du lendemain, jours restants, consommation journalière
 Adapté du dashboard de geobar78 : consommation et coût HC/HP, classe énergétique, comparaison avec une offre Base, bilans de l'année en cours, N-1 et N-2.
 
 ![Dashboard MyElectricalData new HC/HP et DPE](docs/screenshots/my-electrical-data-new.jpg)
+
+### MyElectricalData Enedis, HC/HP et bilans sur 4 ans (`myelectricaldata-enedis-new.json`)
+
+Adapté du dashboard de HermesHonshappo : consommation et répartition HC/HP, puissance horaire des 7 derniers jours, classe énergétique DPE en énergie primaire, consommation et coût Tempo mois par mois de l'année en cours et des trois précédentes.
+
+![Dashboard MyElectricalData Enedis HC/HP et bilans sur 4 ans](docs/screenshots/myelectricaldata-enedis-new.png)
 
 ### Comparateur d'offres (`comparateur-offres.json`)
 
