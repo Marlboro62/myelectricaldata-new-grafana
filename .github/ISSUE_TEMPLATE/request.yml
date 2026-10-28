@@ -1,0 +1,34 @@
+name: 💡 Demande
+description: Proposer une amélioration ou une nouvelle fonctionnalité
+title: "[REQUEST] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci pour votre idée !
+        ⚠️ **Masquez vos informations personnelles** (adresse, ville, numéro de PDL, adresses IP, mots de passe, jetons) dans le texte et les captures.
+  - type: input
+    id: element
+    attributes:
+      label: Carte ou partie concernée
+      placeholder: "ex. : serveur-ha-dns-card"
+    validations:
+      required: true
+  - type: textarea
+    id: demande
+    attributes:
+      label: Votre demande
+      description: Ce que vous aimeriez voir ajouté ou changé.
+    validations:
+      required: true
+  - type: textarea
+    id: usage
+    attributes:
+      label: À quoi cela servirait
+      description: Votre cas d'usage, pour comprendre le besoin.
+  - type: textarea
+    id: exemple
+    attributes:
+      label: Exemple ou capture
+      description: Une capture, un croquis ou une carte qui fait déjà ce que vous imaginez.

@@ -1,0 +1,54 @@
+name: 🐞 Bug
+description: Signaler un problème (affichage, valeur fausse, erreur…)
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de prendre le temps de signaler ce problème.
+        ⚠️ **Masquez vos informations personnelles** (adresse, ville, numéro de PDL, adresses IP, mots de passe, jetons) dans le texte et les captures.
+  - type: input
+    id: element
+    attributes:
+      label: Carte ou partie concernée
+      description: Le nom de la carte, de la page ou de l'option.
+      placeholder: "ex. : carte Météo, disposition WarC0zes"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Visible dans HACS, dans la console du navigateur (F12) ou dans l'onglet Informations de l'add-on.
+      placeholder: "ex. : 3.8.0"
+    validations:
+      required: true
+  - type: input
+    id: ha
+    attributes:
+      label: Version de Home Assistant
+      placeholder: "ex. : 2026.10.2"
+  - type: textarea
+    id: description
+    attributes:
+      label: Description du problème
+      description: Ce qui se passe, et depuis quand.
+    validations:
+      required: true
+  - type: textarea
+    id: attendu
+    attributes:
+      label: Résultat attendu
+      description: Ce qui devrait s'afficher ou se passer.
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Le YAML de la carte (ou la configuration de l'add-on), sans données personnelles.
+      render: yaml
+  - type: textarea
+    id: captures
+    attributes:
+      label: Captures d'écran et journaux
+      description: Glissez vos images ici. Pour les erreurs, copiez la console du navigateur (F12) ou le journal.
